@@ -23,8 +23,7 @@ claude plugin marketplace add nayot/thai-memo-plugin
 claude plugin install thai-memo-plugin@nayot-buu
 ```
 
-The repository is **private** — you need read access to it, and a working git
-credential helper (`gh auth login`) before the first command can fetch it.
+No authentication needed — the repository is public.
 
 Inside a running Claude Code session the same two steps are available from the
 `/plugin` menu.
