@@ -83,12 +83,10 @@ Once all required fields are collected, show the user a summary and ask for conf
 Then write a JSON data file to a temp path and call the build script:
 
 ```bash
-PLUGIN_DIR="$(python3 -c "import subprocess,sys; print(subprocess.check_output(['find', '/home', '-path', '*/thai-memo-plugin/scripts/build_memo.py', '-print', '-quit'], text=True).strip().rsplit('/',1)[0])" 2>/dev/null || echo "~/.claude/plugins")"
-
-python3 "$PLUGIN_DIR/scripts/build_memo.py" /tmp/memo_data.json
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/build_memo.py" /tmp/memo_data.json
 ```
 
-Or find the script relative to this skill file — it lives at `../../scripts/build_memo.py` relative to this SKILL.md.
+If `CLAUDE_PLUGIN_ROOT` is not set, the script sits at `<plugin-root>/scripts/build_memo.py` — i.e. `../../scripts/build_memo.py` relative to this SKILL.md.
 
 ---
 

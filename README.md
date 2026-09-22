@@ -1,17 +1,25 @@
-# thai-memo-plugin
+# nk-work-kit
 
-A [Claude Code](https://claude.ai/code) plugin for drafting Thai official documents:
+A [Claude Code](https://claude.ai/code) plugin for everyday work in the Faculty of
+Engineering, Burapha University.
 
-- **บันทึกข้อความภายใน** (`nai`) — internal memo
-- **หนังสือภายนอก** (`nok`) — external letter
+| Skill | What it does |
+|---|---|
+| `draft-memo` / `thai-memo` | Draft **บันทึกข้อความภายใน** (`nai`, internal memo) and **หนังสือภายนอก** (`nok`, external letter) from LibreOffice OTT templates, exported to ODT/PDF |
+| `doc-number` | Request, list or cancel document numbers in the faculty's **ระบบขอเลขเอกสารอัตโนมัติ** |
+| `thai-memo` (e-Signature) | Upload a finished PDF to **BUU e-Signature** and assign a signer |
+| `transcribe` | Turn a meeting recording into a Markdown transcript — Thai, English or mixed |
 
-Documents are generated from LibreOffice OTT templates and exported to ODT/PDF.
+Ask Claude in your own words, or use the slash commands below.
 
 ## Requirements
 
 - [Claude Code](https://claude.ai/code) CLI
 - Python 3 with `lxml` (`pip install lxml`)
 - LibreOffice (for PDF export)
+- For the `transcribe` skill only: [`uv`](https://docs.astral.sh/uv/), `ffmpeg`,
+  and an [OpenRouter](https://openrouter.ai/keys) API key — see
+  [Audio transcription](#audio-transcription).
 
 ## Install
 
@@ -19,8 +27,8 @@ The plugin is published through the `nayot-buu` marketplace, which lives in this
 same repository. Add the marketplace once, then install from it:
 
 ```bash
-claude plugin marketplace add nayot/thai-memo-plugin
-claude plugin install thai-memo-plugin@nayot-buu
+claude plugin marketplace add nayot/nk-work-kit
+claude plugin install nk-work-kit@nayot-buu
 ```
 
 No authentication needed — the repository is public.
@@ -31,9 +39,9 @@ Inside a running Claude Code session the same two steps are available from the
 Or clone first and add the marketplace from the local path:
 
 ```bash
-git clone https://github.com/nayot/thai-memo-plugin
-claude plugin marketplace add ./thai-memo-plugin
-claude plugin install thai-memo-plugin@nayot-buu
+git clone https://github.com/nayot/nk-work-kit
+claude plugin marketplace add ./nk-work-kit
+claude plugin install nk-work-kit@nayot-buu
 ```
 
 Check what got installed with `claude plugin list` and
@@ -55,6 +63,11 @@ Claude will guide you through collecting all required fields, then generate the 
 The skill also activates automatically when you describe a Thai memo task:
 
 > "ร่างบันทึกข้อความถึงหัวหน้าภาควิชาเพื่อขอแก้ไขเกรด"
+
+Same for transcription — no slash command needed, just describe the task:
+
+> "Transcribe this meeting recording for me" (with an audio file path or attachment)
+> "ช่วยถอดเสียงไฟล์นี้หน่อย"
 
 ### Direct script
 
@@ -95,6 +108,33 @@ The `templates/` directory contains OTT files for Burapha University (BUU). To u
 The bundled templates carry the BUU letterhead, page styles and paragraph
 styles only — the body is intentionally empty, since `build_memo.py` replaces
 it with the document's own content.
+
+## Audio transcription
+
+The `transcribe` skill wraps `scripts/transcribe.py` — a single-file CLI
+(vendored from [autoTranscribe](https://github.com/nayot/autoTranscribe),
+which remains the source of truth) that sends audio to an audio-capable LLM
+via OpenRouter and writes a Markdown transcript: summary, then
+`[MM:SS]`-timestamped, speaker-labeled, verbatim text in the original
+language — Thai, English, or mixed, never translated.
+
+Setup:
+
+```bash
+cp scripts/.env.example scripts/.env
+# edit scripts/.env and paste your OPENROUTER_API_KEY (from https://openrouter.ai/keys)
+```
+
+Direct use:
+
+```bash
+uv run scripts/transcribe.py path/to/recording.m4a --model google/gemini-2.5-flash --yes
+# → path/to/recording.md
+```
+
+Ask Claude instead and it will pick a model, run it, and summarize the result
+in chat — see [`skills/transcribe/SKILL.md`](skills/transcribe/SKILL.md) for
+the model catalog and the long-file chunking behavior.
 
 ## License
 
