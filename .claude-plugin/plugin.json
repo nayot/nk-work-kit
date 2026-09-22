@@ -1,0 +1,10 @@
+{
+  "name": "thai-memo-plugin",
+  "description": "Draft Thai official documents — บันทึกข้อความภายใน (internal memo) and หนังสือภายนอก (external letter) — from OTT templates, output as ODT/PDF via LibreOffice; and request, list or cancel document numbers in BUU Faculty of Engineering's ระบบขอเลขเอกสารอัตโนมัติ.",
+  "author": {
+    "name": "Nayot Kurukitkoson",
+    "email": "nayot@eng.buu.ac.th"
+  },
+  "version": "1.2.0",
+  "license": "MIT"
+}
