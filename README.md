@@ -9,6 +9,7 @@ Engineering, Burapha University.
 | `doc-number` | Request, list or cancel document numbers in the faculty's **ระบบขอเลขเอกสารอัตโนมัติ** |
 | `thai-memo` (e-Signature) | Upload a finished PDF to **BUU e-Signature** and assign a signer |
 | `pending-docs` | Report what is still waiting in **eDoc** (หนังสือค้างรับ) and **e-Signature** (รอลงนาม) — read-only |
+| `edoc-digest` | Fetch unread **eDoc** documents and their PDFs, **ลงรับ** them, and write a summary report with important ones flagged and linked to their PDFs — never signs |
 | `transcribe` | Turn a meeting recording into a Markdown transcript — Thai, English or mixed |
 
 Ask Claude in your own words, or use the slash commands below.
@@ -68,6 +69,7 @@ still works if you prefer it).
 | `OPENROUTER_API_KEY` | `transcribe` | From <https://openrouter.ai/keys> |
 | `EDOC_USERNAME` / `EDOC_PASSWORD` | `pending-docs` | BUU login |
 | `EDOC_INBOX` | `pending-docs` | Optional. Comma-separated inbox names; **leave empty to check them all** |
+| `EDOC_DIGEST_INBOX` | `edoc-digest` | Required. Comma-separated inbox names to fetch and ลงรับ — no "all" default |
 | `ESIGN_USERNAME` / `ESIGN_PASSWORD` | `pending-docs` | Optional — defaults to the `EDOC_` pair |
 
 Lookup order is: real environment variables, then
@@ -86,6 +88,7 @@ profile at `~/.local/share/buu-docnum/profile`, already outside the plugin.
 | Skill | Linux | macOS | Windows |
 |---|---|---|---|
 | `pending-docs` | tested | should work | should work |
+| `edoc-digest` | should work | tested | should work |
 | `transcribe` | tested | should work | should work |
 | `doc-number` | tested | should work | needs a graphical session |
 | `draft-memo` / `thai-memo` | tested | check the LibreOffice path | check the LibreOffice path |
@@ -202,6 +205,36 @@ and is capped by the server at 500 rows.
 The Playwright logic began as a port of the eDoc and e-Sign checkers in
 [eDashboard](https://github.com/nayot/NKAutomationAI); the eDoc half has since
 been rewritten around multi-inbox discovery.
+
+## eDoc digest
+
+The `edoc-digest` skill wraps `scripts/edoc_digest.py`. For each unread
+document in the inboxes named by `EDOC_DIGEST_INBOX` it saves the detail page,
+downloads every attachment, extracts the PDF text layer, and — with
+`--receive` — ลงรับ the document once all of that is on disk. Claude then
+reads the result and writes a report: important documents (urgent, deadlines,
+action needed from you, money/people/legal) flagged at the top with links to
+their PDFs, the rest in an FYI table.
+
+It never signs. ลงรับ uses "ไม่ออกเลข" or "ใช้หมายเลขเดิม" only; if the dialog
+would issue a new เลขรับ from a number book, the document is left unreceived.
+A document whose attachments failed to download is also left unreceived.
+
+Output goes to `~/.local/share/nk-work-kit/edoc/<YYYY-MM-DD>/`
+(`%LOCALAPPDATA%\nk-work-kit\edoc\` on Windows): `manifest.json`, one
+folder per document with its PDFs and extracted text, and Claude's
+`report-<HHMM>.md`.
+
+Direct use:
+
+```bash
+uv run scripts/edoc_digest.py --json                 # fetch only, no ลงรับ
+uv run scripts/edoc_digest.py --receive --json       # fetch + ลงรับ
+uv run scripts/edoc_digest.py --all --receive        # also rows already read but not received
+```
+
+Opening a document marks it read in eDoc, so a second run finds nothing
+unread; `--all` picks up anything still in ค้างรับ.
 
 ## Audio transcription
 
