@@ -33,16 +33,17 @@ Parse as: `<audio-path> [model-id]`
   `pip install` needed.
 - `ffmpeg` + `ffprobe` on PATH.
 - `OPENROUTER_API_KEY`. The script reads it from the environment or from a
-  `.env` file, searched starting next to `transcribe.py` and upward — so the
-  reliable place to put it is `${CLAUDE_PLUGIN_ROOT}/scripts/.env` (copy
-  `scripts/.env.example`). Do **not** rely on `export` in one Bash call being
-  visible in the next — shell state does not persist between tool calls, but
-  a `.env` file does.
+  `.env` file: **`~/.config/nk-work-kit/.env`** first (the one config file for
+  the whole plugin — copy `scripts/.env.example` into it), then next to
+  `transcribe.py`, then upward from the working directory. Prefer `~/.config`:
+  a plugin installs into a version-pinned directory, so a key left beside the
+  script is lost on the next plugin upgrade. Do **not** rely on `export` in one
+  Bash call being visible in the next — shell state does not persist between
+  tool calls, but a `.env` file does.
 - If the key is missing, `transcribe.py` exits with
   `Error: OPENROUTER_API_KEY not set` — tell the user to put their
   OpenRouter key (from <https://openrouter.ai/keys>) into
-  `${CLAUDE_PLUGIN_ROOT}/scripts/.env` as `OPENROUTER_API_KEY=sk-or-...`,
-  then retry.
+  `~/.config/nk-work-kit/.env` as `OPENROUTER_API_KEY=sk-or-...`, then retry.
 
 ## Running it
 
@@ -118,7 +119,7 @@ of boundaries, and mention the caveat in your reply.
   re-run with a stronger model (`gemini-2.5-pro`) rather than editing the
   transcript by hand.
 - Don't put a real `OPENROUTER_API_KEY` value in any file that gets
-  committed — `scripts/.env` is for the user's local key only and is covered
-  by the repo's `.gitignore` (`.env`). If you ever see a real key about to be
-  staged (`git status`/`git diff` before committing), stop and flag it rather
-  than committing it.
+  committed — `~/.config/nk-work-kit/.env` sits outside the repo entirely, and
+  the fallback `scripts/.env` is covered by the repo's `.gitignore` (`.env`).
+  If you ever see a real key about to be staged (`git status`/`git diff` before
+  committing), stop and flag it rather than committing it.

@@ -19,8 +19,8 @@ Usage:
     uv run transcribe.py audio.wav --model google/gemini-2.5-pro --yes
     uv run transcribe.py audio.mp3 -o out.md --no-summary
 
-Requires OPENROUTER_API_KEY in environment or .env file (searched next to
-this script and upward — see scripts/.env.example).
+Requires OPENROUTER_API_KEY in the environment or in ~/.config/nk-work-kit/.env
+(then beside this script, then upward from the CWD — see scripts/.env.example).
 """
 
 import argparse
@@ -37,7 +37,24 @@ from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
 
-load_dotenv()
+# LOCAL CHANGE (not in upstream autoTranscribe): look in the shared plugin
+# config dir first, so one file serves every nk-work-kit skill and survives a
+# plugin upgrade — a plugin installs into a version-pinned directory, so a
+# .env beside this script is orphaned by the next version. Re-apply this on
+# the next re-sync from upstream.
+_xdg = os.environ.get("XDG_CONFIG_HOME")
+load_dotenv((Path(_xdg) if _xdg else Path.home() / ".config") / "nk-work-kit" / ".env")
+load_dotenv(Path(__file__).resolve().parent / ".env")
+load_dotenv()  # upstream behaviour: search from the CWD upward
+
+# LOCAL CHANGE (not in upstream autoTranscribe): Windows hands a legacy code
+# page to a redirected stream, so a Thai filename or model id printed to a
+# piped stdout raises UnicodeEncodeError. Harmless everywhere else.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except (AttributeError, ValueError):
+        pass
 
 # --- Model catalog ----------------------------------------------------------
 # cost_per_min_usd is an approximation based on:

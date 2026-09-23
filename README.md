@@ -8,6 +8,7 @@ Engineering, Burapha University.
 | `draft-memo` / `thai-memo` | Draft **บันทึกข้อความภายใน** (`nai`, internal memo) and **หนังสือภายนอก** (`nok`, external letter) from LibreOffice OTT templates, exported to ODT/PDF |
 | `doc-number` | Request, list or cancel document numbers in the faculty's **ระบบขอเลขเอกสารอัตโนมัติ** |
 | `thai-memo` (e-Signature) | Upload a finished PDF to **BUU e-Signature** and assign a signer |
+| `pending-docs` | Report what is still waiting in **eDoc** (หนังสือค้างรับ) and **e-Signature** (รอลงนาม) — read-only |
 | `transcribe` | Turn a meeting recording into a Markdown transcript — Thai, English or mixed |
 
 Ask Claude in your own words, or use the slash commands below.
@@ -20,6 +21,8 @@ Ask Claude in your own words, or use the slash commands below.
 - For the `transcribe` skill only: [`uv`](https://docs.astral.sh/uv/), `ffmpeg`,
   and an [OpenRouter](https://openrouter.ai/keys) API key — see
   [Audio transcription](#audio-transcription).
+- For the `pending-docs` skill only: [`uv`](https://docs.astral.sh/uv/) and
+  Chromium for Playwright — see [Pending documents](#pending-documents).
 
 ## Install
 
@@ -46,6 +49,59 @@ claude plugin install nk-work-kit@nayot-buu
 
 Check what got installed with `claude plugin list` and
 `claude plugin marketplace list`.
+
+## Configuration
+
+Everything the plugin needs from you lives in **one file**:
+
+```bash
+mkdir -p ~/.config/nk-work-kit
+cp scripts/.env.example ~/.config/nk-work-kit/.env
+chmod 600 ~/.config/nk-work-kit/.env      # Linux/macOS; skip on Windows
+```
+
+On Windows the file goes to `%APPDATA%\nk-work-kit\.env` instead (`~/.config`
+still works if you prefer it).
+
+| Variable | Used by | Notes |
+|---|---|---|
+| `OPENROUTER_API_KEY` | `transcribe` | From <https://openrouter.ai/keys> |
+| `EDOC_USERNAME` / `EDOC_PASSWORD` | `pending-docs` | BUU login |
+| `EDOC_INBOX` | `pending-docs` | Optional. Comma-separated inbox names; **leave empty to check them all** |
+| `ESIGN_USERNAME` / `ESIGN_PASSWORD` | `pending-docs` | Optional — defaults to the `EDOC_` pair |
+
+Lookup order is: real environment variables, then
+`$XDG_CONFIG_HOME/nk-work-kit/.env`, then `%APPDATA%\nk-work-kit\.env` on
+Windows, then `~/.config/nk-work-kit/.env`, then a `.env` beside the scripts. **Keep it in `~/.config`.** A plugin installs into a
+version-pinned directory —
+`~/.claude/plugins/cache/nayot-buu/nk-work-kit/<version>/` — so a `.env` left
+beside the scripts is orphaned the moment you upgrade. The script-local path
+remains as a fallback for running from a clone.
+
+The `doc-number` skill stores no credentials; it keeps a signed-in Chromium
+profile at `~/.local/share/buu-docnum/profile`, already outside the plugin.
+
+## Platform support
+
+| Skill | Linux | macOS | Windows |
+|---|---|---|---|
+| `pending-docs` | tested | should work | should work |
+| `transcribe` | tested | should work | should work |
+| `doc-number` | tested | should work | needs a graphical session |
+| `draft-memo` / `thai-memo` | tested | check the LibreOffice path | check the LibreOffice path |
+
+Only Linux is actually tested. Nothing in the Python is platform-specific —
+paths go through `pathlib`, config resolution understands `%APPDATA%`, and
+stdout is forced to UTF-8 so Thai text survives a Windows console code page —
+but macOS and Windows have not been exercised end to end. Two things to know:
+
+- **LibreOffice** is invoked as `libreoffice` in these docs, which is the Linux
+  name. On macOS it is
+  `/Applications/LibreOffice.app/Contents/MacOS/soffice`, on Windows
+  `soffice.exe`. Substitute accordingly when converting to PDF.
+- The scripts carry a `#!/usr/bin/env -S uv run --script` shebang, which
+  Windows ignores. That is fine — every documented invocation is
+  `uv run <script>`, which works the same on all three platforms.
 
 ## Usage
 
@@ -109,6 +165,44 @@ The bundled templates carry the BUU letterhead, page styles and paragraph
 styles only — the body is intentionally empty, since `build_memo.py` replaces
 it with the document's own content.
 
+## Pending documents
+
+The `pending-docs` skill wraps `scripts/check_pending.py`, which signs in to
+**eDoc** and **BUU e-Signature** and counts what is waiting. It is strictly
+read-only — it never opens, receives or signs a document, because opening a
+document in eDoc marks it read.
+
+Setup: fill in `EDOC_USERNAME` / `EDOC_PASSWORD` in
+[`~/.config/nk-work-kit/.env`](#configuration) (e-Signature reuses them by
+default), then install the browser once:
+
+```bash
+uv run --with playwright==1.60.0 playwright install chromium
+```
+
+Direct use:
+
+```bash
+uv run scripts/check_pending.py            # report
+uv run scripts/check_pending.py --json     # machine-readable
+uv run scripts/check_pending.py --only esign
+```
+
+An eDoc account usually has several inboxes — personal, faculty, department,
+and any role the user holds. The script discovers them at run time and reports
+each one separately, so leave `EDOC_INBOX` empty unless you want to narrow the
+check; an `EDOC_INBOX` name that matches no inbox is a hard error rather than a
+silent zero.
+
+Two eDoc numbers are reported per inbox and they are not the same: documents
+marked **ใหม่/ยังไม่ได้อ่าน** (the actionable count) and the full
+**รายการหนังสือค้างรับ** list, which on a shared inbox is a years-deep backlog
+and is capped by the server at 500 rows.
+
+The Playwright logic began as a port of the eDoc and e-Sign checkers in
+[eDashboard](https://github.com/nayot/NKAutomationAI); the eDoc half has since
+been rewritten around multi-inbox discovery.
+
 ## Audio transcription
 
 The `transcribe` skill wraps `scripts/transcribe.py` — a single-file CLI
@@ -118,12 +212,8 @@ via OpenRouter and writes a Markdown transcript: summary, then
 `[MM:SS]`-timestamped, speaker-labeled, verbatim text in the original
 language — Thai, English, or mixed, never translated.
 
-Setup:
-
-```bash
-cp scripts/.env.example scripts/.env
-# edit scripts/.env and paste your OPENROUTER_API_KEY (from https://openrouter.ai/keys)
-```
+Setup: paste your OpenRouter key into
+[`~/.config/nk-work-kit/.env`](#configuration) as `OPENROUTER_API_KEY=`.
 
 Direct use:
 
