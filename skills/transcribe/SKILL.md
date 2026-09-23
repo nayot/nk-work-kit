@@ -31,10 +31,14 @@ Parse as: `<audio-path> [model-id]`
 
 - `uv` on PATH — the script is self-contained (PEP 723 inline deps), no
   `pip install` needed.
-- `ffmpeg` + `ffprobe` on PATH.
+- `ffmpeg` + `ffprobe` — on PATH, or in a standard package-manager location
+  (Homebrew on macOS; winget, Scoop or Chocolatey on Windows). If missing, the
+  script exits with a per-OS install hint (`brew install ffmpeg`,
+  `winget install Gyan.FFmpeg`, `sudo apt install ffmpeg`) — relay it.
 - `OPENROUTER_API_KEY`. The script reads it from the environment or from a
   `.env` file: **`~/.config/nk-work-kit/.env`** first (the one config file for
-  the whole plugin — copy `scripts/.env.example` into it), then next to
+  the whole plugin — copy `scripts/.env.example` into it; on Windows
+  `%APPDATA%\nk-work-kit\.env` is also checked), then next to
   `transcribe.py`, then upward from the working directory. Prefer `~/.config`:
   a plugin installs into a version-pinned directory, so a key left beside the
   script is lost on the next plugin upgrade. Do **not** rely on `export` in one

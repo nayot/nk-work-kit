@@ -20,7 +20,8 @@ Usage:
     uv run transcribe.py audio.mp3 -o out.md --no-summary
 
 Requires OPENROUTER_API_KEY in the environment or in ~/.config/nk-work-kit/.env
-(then beside this script, then upward from the CWD — see scripts/.env.example).
+(%APPDATA%\\nk-work-kit\\.env on Windows; then beside this script, then upward
+from the CWD — see scripts/.env.example). Needs ffmpeg + ffprobe.
 """
 
 import argparse
@@ -28,6 +29,7 @@ import base64
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -42,8 +44,13 @@ from openai import OpenAI
 # plugin upgrade — a plugin installs into a version-pinned directory, so a
 # .env beside this script is orphaned by the next version. Re-apply this on
 # the next re-sync from upstream.
-_xdg = os.environ.get("XDG_CONFIG_HOME")
-load_dotenv((Path(_xdg) if _xdg else Path.home() / ".config") / "nk-work-kit" / ".env")
+# Same order as check_pending.py; load_dotenv never overrides, so the first
+# file to set a key wins and real environment variables beat them all.
+_config_bases = [Path(p) for p in (os.environ.get("XDG_CONFIG_HOME"),
+                                   os.environ.get("APPDATA")) if p]  # APPDATA: Windows
+_config_bases.append(Path.home() / ".config")                        # Linux and macOS
+for _base in _config_bases:
+    load_dotenv(_base / "nk-work-kit" / ".env")
 load_dotenv(Path(__file__).resolve().parent / ".env")
 load_dotenv()  # upstream behaviour: search from the CWD upward
 
@@ -140,18 +147,51 @@ class AudioInfo:
         return self.size_bytes / (1024 * 1024)
 
 
-def run_capture(cmd: list[str]) -> str:
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    return result.stdout
+# LOCAL CHANGE (not in upstream autoTranscribe): cross-platform ffmpeg handling.
+# Resolve ffmpeg/ffprobe on PATH, then in the usual package-manager dirs that a
+# non-login shell may leave off PATH (Homebrew on macOS; winget, Scoop and
+# Chocolatey on Windows). Decode ffprobe's JSON as UTF-8 — `text=True` alone
+# uses the locale code page on Windows (cp874/cp1252), and a Thai filename or
+# tag then raises UnicodeDecodeError. Report a failed ffmpeg run by its own
+# message rather than a CalledProcessError traceback. Re-apply on re-sync.
+_TOOL_DIRS = {
+    "darwin": ["/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin"],
+    "win32": [
+        str(Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WinGet" / "Links"),
+        str(Path.home() / "scoop" / "shims"),
+        str(Path(os.environ.get("ProgramData", r"C:\ProgramData")) / "chocolatey" / "bin"),
+    ],
+}.get(sys.platform, ["/usr/local/bin", "/snap/bin"])
+
+_INSTALL_HINT = {
+    "darwin": "brew install ffmpeg",
+    "win32": "winget install Gyan.FFmpeg   (then open a new terminal)",
+}.get(sys.platform, "sudo apt install ffmpeg   (or your distro's equivalent)")
+
+
+def find_tool(name: str) -> str:
+    found = shutil.which(name) or shutil.which(name, path=os.pathsep.join(_TOOL_DIRS))
+    if not found:
+        sys.exit(f"Error: {name} not found. Install ffmpeg (it ships {name}): {_INSTALL_HINT}")
+    return found
+
+
+def run_tool(cmd: list[str], capture: bool = False) -> str:
+    try:
+        result = subprocess.run(cmd, capture_output=True, check=True)
+    except subprocess.CalledProcessError as e:
+        err = e.stderr.decode("utf-8", errors="replace").strip()
+        sys.exit(f"Error: {Path(cmd[0]).stem} failed (exit {e.returncode}): {err or 'no output'}")
+    return result.stdout.decode("utf-8", errors="replace") if capture else ""
 
 
 def inspect_audio(path: Path) -> AudioInfo:
-    raw = run_capture([
-        "ffprobe", "-v", "error",
+    raw = run_tool([
+        find_tool("ffprobe"), "-v", "error",
         "-print_format", "json",
         "-show_format", "-show_streams",
         str(path),
-    ])
+    ], capture=True)
     data = json.loads(raw)
     fmt = data.get("format", {})
     audio_stream = next(
@@ -260,13 +300,13 @@ def confirm(message: str) -> bool:
 # --- Transcription ----------------------------------------------------------
 
 def normalize_to_mp3(src: Path, dst: Path, start: float | None = None, length: float | None = None) -> None:
-    cmd = ["ffmpeg", "-y", "-loglevel", "error", "-i", str(src)]
+    cmd = [find_tool("ffmpeg"), "-y", "-loglevel", "error", "-i", str(src)]
     if start is not None:
         cmd += ["-ss", str(start)]
     if length is not None:
         cmd += ["-t", str(length)]
     cmd += ["-ac", "1", "-ar", "16000", "-b:a", "64k", str(dst)]
-    subprocess.run(cmd, check=True)
+    run_tool(cmd)
 
 
 def chunk_audio(src: Path, duration_s: float, chunk_seconds: int, workdir: Path) -> list[tuple[Path, float]]:
@@ -373,7 +413,9 @@ def main() -> None:
 
     out_path = args.output or args.audio.with_suffix(".md")
 
-    with tempfile.TemporaryDirectory() as td:
+    # ignore_cleanup_errors: Windows antivirus/indexers can briefly lock a
+    # just-written chunk, which would otherwise crash a finished run.
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as td:
         workdir = Path(td)
 
         if info.duration_s <= SINGLE_CALL_MAX_SECONDS:
