@@ -21,7 +21,9 @@ Ask Claude in your own words, or use the slash commands below.
 - Python 3 with `lxml` (`pip install lxml`)
 - LibreOffice (for PDF export)
 - For the `transcribe` skill only: [`uv`](https://docs.astral.sh/uv/), `ffmpeg`,
-  and an [OpenRouter](https://openrouter.ai/keys) API key — see
+  an [OpenRouter](https://openrouter.ai/keys) API key, and optionally
+  [`rclone`](https://rclone.org/) with a Google Drive remote (to file the
+  recordings) — see
   [Audio transcription](#audio-transcription).
 - For the `pending-docs` skill only: [`uv`](https://docs.astral.sh/uv/) and
   Chromium for Playwright — see [Pending documents](#pending-documents).
@@ -70,6 +72,7 @@ still works if you prefer it).
 | Variable | Used by | Notes |
 |---|---|---|
 | `OPENROUTER_API_KEY` | `transcribe` | From <https://openrouter.ai/keys> |
+| `TRANSCRIBE_RCLONE_DEST` | `transcribe` | rclone `remote:path` (e.g. `GDrive:Recordings`) that the audio is **moved** to after transcription. Empty: ask on first run. `none`: keep audio local |
 | `EDOC_USERNAME` / `EDOC_PASSWORD` | `pending-docs` | BUU login |
 | `EDOC_INBOX` | `pending-docs` | Optional. Comma-separated inbox names; **leave empty to check them all** |
 | `EDOC_DIGEST_INBOX` | `edoc-digest` | Required. Comma-separated inbox names to fetch and ลงรับ — no "all" default |
@@ -303,6 +306,13 @@ language — Thai, English, or mixed, never translated.
 
 Setup: paste your OpenRouter key into
 [`~/.config/nk-work-kit/.env`](#configuration) as `OPENROUTER_API_KEY=`.
+
+When the transcript looks right, Claude **moves the recording** to a Google
+Drive folder with [`rclone`](https://rclone.org/) and leaves the `.md` where it
+was written. The folder is `TRANSCRIBE_RCLONE_DEST` (an rclone `remote:path`).
+Claude asks for it on the first run and saves it to the `.env`. Set it to
+`none` to keep recordings local. The script itself never uploads anything, so
+running it directly leaves the audio in place.
 
 Direct use:
 
