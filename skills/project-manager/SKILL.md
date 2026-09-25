@@ -3,7 +3,7 @@ name: project-manager
 description: Activate this skill when the user wants to see or update the status of their ongoing projects, tracked as notes in their Obsidian vault — "project status", "สถานะโครงการ", "สถานะโปรเจกต์", "update the X project", "อัปเดตโครงการ", "what's due this week", "มีอะไรใกล้ถึงกำหนด", "มีอะไรเลยกำหนด", "what's overdue", "add a new project", "เพิ่มโครงการ", "update the dashboard", "project digest", "set up project tracking", "ตั้งค่าติดตามโครงการ". Also activate after a meeting summary, transcript, memo, document number or eDoc item clearly belongs to a tracked project — offer to log it there. Can set up a scheduled email digest of upcoming and overdue items.
 argument-hint: "[setup | status | due | update <project> | new <name> | dashboard | setup-notify]"
 allowed-tools: [Bash, Read, Edit, Write]
-version: 1.2.0
+version: 1.3.0
 ---
 
 # Project manager — Obsidian as database and dashboard
@@ -194,19 +194,21 @@ after every update. A scheduled `notify` run does not rebuild it. Add a
 item links to its note through an `obsidian://open?vault=…&file=…` URL, which
 opens in the Obsidian desktop app. The mail method is `PM_MAIL_METHOD`:
 
-- **`gmail-oauth`** (recommended for Google Workspace): the user's own Desktop
-  OAuth client.
-  - **Setup in Google Cloud:**
-    - create a project **under the Workspace organisation**;
-    - enable the **Gmail API** only (the Gmail MCP API isn't needed);
-    - set the consent screen to **Internal**, with the single scope `gmail.send`;
-    - create an OAuth client ID of type **Desktop app**.
-  - Save the client JSON as `~/.config/nk-work-kit/credentials.json`
-    (`PM_GMAIL_CLIENT`) with `chmod 600`.
-  - Run `projects.py auth-gmail` once. It opens a browser and stores a
-    send-only token in `gmail-token.json` beside the client file.
-  - An **External / Testing** app's token expires after 7 days, which breaks a
-    daily timer.
+- **`gmail-oauth`** (the default, recommended): no Google Cloud setup needed.
+  - Run `projects.py auth-gmail` once. It opens a browser; the user signs in
+    with their BUU Google account and allows "send email". It stores a
+    send-only token in `~/.config/nk-work-kit/gmail-token.json`.
+  - It uses the plugin's bundled OAuth client (`scripts/gmail_oauth_client.json`,
+    Internal consent screen in the BUU Workspace). An account outside that
+    organisation gets "restricted to users within its organization": that user
+    needs their own client (below) or `smtp`.
+  - **Own client (optional):** create a Google Cloud project under the
+    Workspace organisation, enable the **Gmail API**, set the consent screen to
+    **Internal** with the single scope `gmail.send`, create an OAuth client ID
+    of type **Desktop app**, and save its JSON as
+    `~/.config/nk-work-kit/credentials.json` (or point `PM_GMAIL_CLIENT` at it;
+    the token then goes beside that file), `chmod 600`. An **External /
+    Testing** app's token expires after 7 days, which breaks a daily timer.
 - **`gmail-api`**: gcloud ADC. Google often blocks gcloud's own sign-in from
   requesting Gmail permission ("This app is blocked"), so prefer
   `gmail-oauth`. Where it isn't blocked, the ADC login must include `gmail.send`, and re-running the login replaces the
@@ -304,8 +306,8 @@ message arrived.
 - **An always-on server (recommended when the desktop is often off).** The
   server only needs `uv`, a git clone of this repo (update it with
   `git pull`) and the config. It doesn't need Claude Code or the plugin.
-  1. Copy `~/.config/nk-work-kit/.env`, `credentials.json` and
-     `gmail-token.json` to the same place on the server, with `chmod 600`. The
+  1. Copy `~/.config/nk-work-kit/.env`, `gmail-token.json` (and
+     `credentials.json`, if you use your own client) to the same place on the server, with `chmod 600`. The
      token refreshes itself, so no browser is needed there.
   2. In the server's `.env`, set `OBSIDIAN_VAULT` to the server's copy of the
      vault. Set `PM_VAULT_NAME` to the vault's name **on the desktop**, so the

@@ -47,16 +47,21 @@ NOTIFY
 ------
 `notify` sends the digest to PM_NOTIFY_TO only when something is overdue or due
 within PM_NOTIFY_DAYS. On a quiet day it sends nothing and exits 0 (`--force`
-overrides, for testing). Three senders, chosen by PM_MAIL_METHOD:
+overrides, for testing). Three senders, chosen by PM_MAIL_METHOD (default:
+smtp if SMTP_PASSWORD is set, else gmail-oauth):
 
+    gmail-oauth  Gmail REST API. `auth-gmail` signs in once and stores a
+                 gmail.send-only token in the config dir (gmail-token.json);
+                 it refreshes itself after that. The OAuth client is, in order:
+                 PM_GMAIL_CLIENT (token goes beside it), credentials.json in the
+                 config dir, or the bundled gmail_oauth_client.json — the
+                 plugin's own client, with an Internal consent screen in the
+                 BUU Workspace, so only accounts in that organisation can sign
+                 in. With your own client, use an Internal consent screen: an
+                 External app in Testing mode has refresh tokens that expire
+                 after 7 days.
     smtp         SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASSWORD (Gmail: app
                  password, smtp.gmail.com:465).
-    gmail-oauth  Gmail REST API with the user's own Desktop OAuth client
-                 (PM_GMAIL_CLIENT, default credentials.json in the config dir).
-                 `auth-gmail` signs in once and stores a gmail.send-only token
-                 in gmail-token.json beside it; it refreshes itself after that.
-                 Use an Internal consent screen — an External app in Testing
-                 mode has refresh tokens that expire after 7 days.
     gmail-api    Gmail REST API with gcloud Application Default Credentials.
                  Google blocks gcloud's own client from the Gmail scopes on
                  many accounts ("This app is blocked"); prefer gmail-oauth.
@@ -528,9 +533,22 @@ def send_gmail_api(msg: EmailMessage, creds=None) -> None:
 GMAIL_SEND = ["https://www.googleapis.com/auth/gmail.send"]
 
 
+# The plugin's own Desktop OAuth client (BUU Workspace project, Internal consent
+# screen, gmail.send only). Google treats an installed app's client secret as
+# not confidential; each user's token stays in their own config dir.
+BUNDLED_CLIENT = Path(__file__).resolve().parent / "gmail_oauth_client.json"
+
+
 def gmail_oauth_paths() -> tuple[Path, Path]:
-    client = Path(os.environ.get("PM_GMAIL_CLIENT") or config_dir() / "credentials.json").expanduser()
-    return client, client.with_name("gmail-token.json")
+    """(client JSON, token). Client: PM_GMAIL_CLIENT, else credentials.json in the
+    config dir, else the bundled one. The token sits beside PM_GMAIL_CLIENT when
+    that is set, otherwise in the config dir: never beside the bundled client,
+    which lives in the version-pinned plugin cache."""
+    if os.environ.get("PM_GMAIL_CLIENT"):
+        client = Path(os.environ["PM_GMAIL_CLIENT"]).expanduser()
+        return client, client.with_name("gmail-token.json")
+    own = config_dir() / "credentials.json"
+    return (own if own.is_file() else BUNDLED_CLIENT), config_dir() / "gmail-token.json"
 
 
 def cmd_auth_gmail() -> None:
@@ -538,6 +556,8 @@ def cmd_auth_gmail() -> None:
     client, token = gmail_oauth_paths()
     if not client.is_file():
         sys.exit(f"OAuth client file not found: {client} (Desktop app JSON from Google Cloud).")
+    print(f"OAuth client: {client}")
+    token.parent.mkdir(parents=True, exist_ok=True)
     flow = InstalledAppFlow.from_client_secrets_file(str(client), GMAIL_SEND)
     creds = flow.run_local_server(port=0, open_browser=True,
                                   authorization_prompt_message="Sign in in your browser: {url}")
@@ -662,7 +682,8 @@ def main() -> None:
         to = os.environ.get("PM_NOTIFY_TO", "").strip()
         if not to:
             sys.exit("PM_NOTIFY_TO is not set.")
-        method = os.environ.get("PM_MAIL_METHOD", "smtp").strip()
+        method = (os.environ.get("PM_MAIL_METHOD", "").strip()
+                  or ("smtp" if os.environ.get("SMTP_PASSWORD") else "gmail-oauth"))
         msg = build_message(d, to, os.environ.get("SMTP_USER") or to)
         if a.dry_run:
             print(f"[dry-run via {method}] To: {to}\nSubject: {msg['Subject']}\n\n{digest_text(d)}")

@@ -281,10 +281,11 @@ uv run scripts/projects.py notify --dry-run
 
 **Email digest (optional).** `notify` emails `PM_NOTIFY_TO` only when something
 is overdue or due within `PM_NOTIFY_DAYS`; each item links to its note with an
-`obsidian://` URL. Send via your own Google Cloud OAuth client
-(`PM_MAIL_METHOD=gmail-oauth`: a Desktop-app client with an Internal consent
-screen, the Gmail API enabled, saved as `~/.config/nk-work-kit/credentials.json`;
-run `projects.py auth-gmail` once), via SMTP (`PM_MAIL_METHOD=smtp`, e.g. a
+`obsidian://` URL. Send via the Gmail API (`PM_MAIL_METHOD=gmail-oauth`, the
+default): run `projects.py auth-gmail` once and sign in with your BUU Google
+account. No Google Cloud setup is needed: the plugin ships its own OAuth client
+(Internal to the BUU Workspace); to use your own Desktop-app client instead,
+save it as `~/.config/nk-work-kit/credentials.json`. Or send via SMTP (`PM_MAIL_METHOD=smtp`, e.g. a
 Gmail app password), or via gcloud ADC (`PM_MAIL_METHOD=gmail-api`, often
 blocked by Google for Gmail scopes). Schedule it with a systemd user timer,
 cron, launchd or Task Scheduler — see
