@@ -3,7 +3,7 @@ name: transcribe
 description: Transcribe an audio recording (meeting, interview, lecture) into a Markdown transcript with timestamps and speaker labels, in Thai, English, or mixed. Use `/transcribe <audio-path>` or activate automatically when the user asks to "transcribe", "ถอดเสียง", "ถอดความ", "ทำ transcript", "get a transcript / minutes / notes from this recording", or points at an audio file (.m4a, .mp3, .wav, .aac, .ogg, .flac) and wants text out of it.
 argument-hint: <audio-path> [model-id]
 allowed-tools: [Bash, Read, Edit, Write]
-version: 1.1.0
+version: 1.2.0
 ---
 
 # transcribe — Audio → Markdown Transcript
@@ -49,13 +49,14 @@ Parse as: `<audio-path> [model-id]`
   OpenRouter key (from <https://openrouter.ai/keys>) into
   `~/.config/nk-work-kit/.env` as `OPENROUTER_API_KEY=sk-or-...`, then retry.
 - `rclone` with a configured Google Drive remote, for filing the recording
-  afterwards (see below). Without it the transcription still runs; only the
-  move is skipped.
+  and its transcript afterwards (see below). Without it the transcription
+  still runs; only the move is skipped.
 
 ## First run: setup
 
-After transcribing, the skill **moves the audio file** to a Google Drive
-folder with `rclone`. The transcript `.md` stays local. The folder comes from
+After transcribing, the skill **moves the audio file and its transcript
+`.md`** to a Google Drive folder with `rclone`, so the two stay together. The
+folder comes from
 `TRANSCRIBE_RCLONE_DEST` in the `.env`, as an rclone `remote:path` such as
 `GDrive:Recordings`. `transcribe.py` does not read this variable. You resolve
 it yourself, in the scripts' lookup order: a real env var first, then the first
@@ -75,7 +76,7 @@ Do this check **before** running the transcription, so setup questions come
 up front and don't interrupt the result:
 
 - **A `remote:path` value:** use it. There is nothing to ask.
-- **`none`:** the user has opted out. Leave the audio where it is and do not ask.
+- **`none`:** the user has opted out. Leave both files where they are and do not ask.
 - **Empty or unset:** this is the setup phase. Ask once:
   1. Run `rclone listremotes` and ask which remote and folder to use. Several
      remotes may point at different Google accounts, so don't guess. If rclone
@@ -147,37 +148,47 @@ of boundaries, and mention the caveat in your reply.
    the participant list, if identified) in chat — don't dump the entire
    verbatim transcript into the conversation unless they ask for it.
 2. Give the output file path.
-3. **Move the audio to Drive.** Do this only when the destination is set (see
-   setup) **and** the transcript is non-empty and looks sane. `rclone move`
-   deletes the local file, and the retries below (video container, empty
-   output, re-run with `gemini-2.5-pro`) all need it. So an empty or garbled
-   transcript means no move. First check for a name clash, because rclone
-   would silently overwrite a different file with the same name:
+3. **Move the audio and the transcript to Drive.** Do this only when the
+   destination is set (see setup) **and** the transcript is non-empty and
+   looks sane. `rclone move` deletes the local files, and the retries below
+   (video container, empty output, re-run with `gemini-2.5-pro`) all need the
+   audio. So an empty or garbled transcript means no move. Do steps 1–2
+   (reading and summarising the `.md`) before this, because the local copy
+   is gone afterwards. The transcript is the `Wrote <output-path>` file, which
+   is not next to the audio when `-o` was used.
+
+   First check both names for a clash, because rclone would silently
+   overwrite a different file with the same name:
 
    ```bash
    rclone lsf "<dest>/<audio-filename>" 2>/dev/null
+   rclone lsf "<dest>/<transcript-filename>" 2>/dev/null
    ```
 
-   If it prints the filename, the file already exists. If it prints nothing,
+   A printed filename means that file already exists. Nothing printed means
    the name is free (rclone reports `directory not found` on stderr with exit
    3 for a missing path, which is not a clash).
 
-   If the name already exists, ask the user: rename the upload
-   (`rclone moveto "<audio-path>" "<dest>/<new-name>"`) or keep it local.
-   Otherwise:
+   If either name already exists, ask the user before moving anything: rename
+   the clashing upload (`rclone moveto "<local-path>" "<dest>/<new-name>"`;
+   keep the audio and `.md` basenames matching, e.g. both get a `-2` suffix),
+   or keep both files local. Otherwise move the audio, then the transcript:
 
    ```bash
    rclone move "<audio-path>" "<dest>/" --no-traverse
+   rclone move "<transcript-path>" "<dest>/" --no-traverse
    ```
 
-   rclone verifies the upload before it deletes the source. Report the Drive
-   location (`<dest>/<audio-filename>`). If rclone fails (not installed,
-   expired token, unreachable folder), say that the transcript is fine and the
-   audio is still local, and give the error. This is not a transcription
-   failure. If the user later wants a re-run, get the file back first with
-   `rclone copy "<dest>/<audio-filename>" <local-dir>/`. When you extracted
-   audio from a video (next step), move the file you transcribed and leave
-   the original video alone.
+   rclone verifies each upload before it deletes the source. Report both
+   Drive locations (`<dest>/<audio-filename>`, `<dest>/<transcript-filename>`).
+   If rclone fails (not installed, expired token, unreachable folder), say
+   that the transcript is fine, say which files are still local, and give the
+   error. This is not a transcription failure. If the audio move fails, don't
+   move the `.md` either, so the pair isn't split. If the user later wants a
+   re-run or to edit the transcript, get the files back first with
+   `rclone copy "<dest>/<filename>" <local-dir>/`. When you extracted audio
+   from a video (next step), move the file you transcribed and leave the
+   original video alone.
 4. If `transcribe.py` reports `No audio stream found`, the file is probably
    a video container — extract audio first:
    `ffmpeg -i input.mp4 -vn -c:a copy output.m4a`, then retry.
@@ -189,8 +200,9 @@ of boundaries, and mention the caveat in your reply.
 
 - Don't pass a bare `transcribe.py <audio>` with no `--model`/`--yes` — it
   will hang waiting for interactive input Claude cannot supply.
-- Don't move the audio before the transcript has been checked, and don't
-  move the transcript. Only the recording goes to Drive.
+- Don't move anything before the transcript has been checked and its
+  summary shown, and don't move one file of the pair without the other
+  unless the user chose that.
 - Don't guess at Thai speech content if the model output looks wrong —
   re-run with a stronger model (`gemini-2.5-pro`) rather than editing the
   transcript by hand.
