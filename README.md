@@ -255,7 +255,12 @@ upcoming items, active projects with a stale flag, waiting-on-others, and live
 Tasks/Dataview views. No Obsidian plugin is required; Tasks and Dataview
 blocks light up if you have them.
 
-Setup — add to [`~/.config/nk-work-kit/.env`](#configuration):
+Setup: run `/project-manager setup`, or ask "set up project tracking". Claude
+finds your vault, surveys it without changing anything, suggests 5–8 active
+projects from recent notes (and from email and calendar if those connectors
+are on), pre-fills a status card for each one for you to correct, then creates
+the hub notes and the first dashboard. You can also set it up by hand in
+[`~/.config/nk-work-kit/.env`](#configuration):
 
 ```
 OBSIDIAN_VAULT=/path/to/your/vault

@@ -1,9 +1,9 @@
 ---
 name: project-manager
-description: Activate this skill when the user wants to see or update the status of their ongoing projects, tracked as notes in their Obsidian vault — "project status", "สถานะโครงการ", "สถานะโปรเจกต์", "update the X project", "อัปเดตโครงการ", "what's due this week", "มีอะไรใกล้ถึงกำหนด", "มีอะไรเลยกำหนด", "what's overdue", "add a new project", "เพิ่มโครงการ", "update the dashboard", "project digest". Also activate after a meeting summary, transcript, memo, document number or eDoc item clearly belongs to a tracked project — offer to log it there. Can set up a scheduled email digest of upcoming and overdue items.
-argument-hint: "[status | due | update <project> | new <name> | dashboard | setup-notify]"
+description: Activate this skill when the user wants to see or update the status of their ongoing projects, tracked as notes in their Obsidian vault — "project status", "สถานะโครงการ", "สถานะโปรเจกต์", "update the X project", "อัปเดตโครงการ", "what's due this week", "มีอะไรใกล้ถึงกำหนด", "มีอะไรเลยกำหนด", "what's overdue", "add a new project", "เพิ่มโครงการ", "update the dashboard", "project digest", "set up project tracking", "ตั้งค่าติดตามโครงการ". Also activate after a meeting summary, transcript, memo, document number or eDoc item clearly belongs to a tracked project — offer to log it there. Can set up a scheduled email digest of upcoming and overdue items.
+argument-hint: "[setup | status | due | update <project> | new <name> | dashboard | setup-notify]"
 allowed-tools: [Bash, Read, Edit, Write]
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Project manager — Obsidian as database and dashboard
@@ -19,6 +19,77 @@ If `CLAUDE_PLUGIN_ROOT` is not set, the script sits at
 `<plugin-root>/scripts/projects.py`. The vault path comes from `OBSIDIAN_VAULT`
 in `~/.config/nk-work-kit/.env`. If it is missing, ask the user for the vault
 folder (the one containing `.obsidian/`) and add it.
+
+## First run: setup and onboarding
+
+Run this when `$ARGUMENTS` is `setup`, when the user asks to set up project
+tracking, or when `list --json` returns no projects. Go step by step and ask
+before every write. It must never modify the user's existing notes.
+
+1. **Find the vault.** If `OBSIDIAN_VAULT` is unset, read Obsidian's vault
+   list: `obsidian.json` in `~/.config/obsidian/` (Linux),
+   `~/Library/Application Support/obsidian/` (macOS) or `%APPDATA%\obsidian\`
+   (Windows). Offer the vault marked `"open": true`, or the most recent one.
+   With the user's OK, append `OBSIDIAN_VAULT=<path>` to
+   `~/.config/nk-work-kit/.env`, creating it with `chmod 600` if needed.
+2. **Survey, read-only:**
+   - plugins in `.obsidian/community-plugins.json` (Tasks? Dataview?
+     Templater?);
+   - top-level folders, and whether a `Projects/` folder exists;
+   - how notes already record dates, tasks and frontmatter;
+   - how the vault syncs (Obsidian Sync, Syncthing, rclone, cloud drive).
+
+   The sync method matters later for scheduling and for which machine writes
+   the dashboard. Fit the hub notes to what you find: reuse the user's due-date
+   format and don't impose a folder layout.
+3. **Find candidate projects.** Look for:
+   - notes edited in the last 60–90 days;
+   - folders or name prefixes that group several notes, and runs of meeting
+     notes on one topic;
+   - notes with many open checkboxes;
+   - existing index or "start here" notes.
+
+   If Gmail or Calendar connectors are available, search recent mail and
+   upcoming events for the same topics. Propose **5–8** candidates, one line
+   each saying why you think it is a project and how recently it was touched.
+   The user picks, adds or drops.
+4. **Pre-fill a card per project.** Read each project's notes. With more than
+   three projects, use parallel read-only subagents, one or two projects each.
+   Each card has:
+   - a summary (what, who, the user's role);
+   - status and priority (marked as your guess);
+   - key dates, each with its source;
+   - next action with its due date, and waiting-on;
+   - open tasks still worth doing;
+   - related notes as `[[links]]`;
+   - open questions.
+
+   Present all cards together as a compact table plus a short list of
+   inconsistencies found (conflicting dates, duplicate or empty notes, notes
+   filed under the wrong topic). Ask about ownership and changes since the
+   notes were written.
+5. **One correction round.** Accept terse answers ("1: all mine, 3: Stef will
+   sign"). If the user points you to email or calendar for dates, search there.
+6. **Create the hubs.** Write one hub note per project in `Projects/` (or the
+   user's chosen folder) using the data model above:
+   - `📅` only on dates that have a source; suggested buffers are noted as such
+     in the Log;
+   - a first Log line saying where the information came from.
+
+   Then run `dashboard` and show the counts: projects, overdue, due soon.
+7. **Offer the email digest (optional).** Walk through **Email digest** below:
+   - pick a mail method;
+   - `notify --dry-run`, then a single `notify --force` to the user's own
+     address, and confirm it arrived;
+   - schedule it to suit their machines: an always-on server, a desktop timer
+     with `Persistent=true`, or none.
+
+   If the user's instructions require approval before sending email, get an
+   explicit standing exception for this digest first, and record it where they
+   keep such rules. Otherwise stop at the dry run.
+
+Finish with a short summary: the hub notes created, the dashboard path, the
+notification state, and what the user still has to answer.
 
 ## The data model
 
@@ -90,7 +161,7 @@ record what happened, don't editorialise. Then:
 the user, an email, a calendar event or a document. A date you suggest as a
 buffer must be marked as a suggestion in the Log line.
 
-**New projects:** look for existing notes about the project first, so the hub
+**New projects** (one at a time, after setup): look for existing notes about the project first, so the hub
 can link them, then create it with `new` and fill in the sections. You can offer
 to pre-fill the hub from the vault, email and calendar.
 
