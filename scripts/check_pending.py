@@ -52,7 +52,13 @@ HARD-WON DETAILS — do not "simplify" these away:
     an `a.home-shortcuts-open-by-listsource` with its own `data-entity-id`.
     They are enumerated live rather than configured, because a wrong name in
     config used to produce a silent "0 pending" that looked like good news.
-    A configured name that matches nothing is a hard error, never a zero.
+    A configured name that is not on the ทางลัด tab is NOT an error: it was
+    observed (Sept 2026, by the user; not confirmed against eDoc itself) that
+    an inbox with no new documents can drop off the tab. It is reported as
+    `absent` with 0 new, plus a note naming the inboxes that ARE listed so a
+    typo can still be spotted. An ambiguous name is still a hard error. This
+    is only safe because the tab is read with a stability poll (links load in
+    stages) — keep the poll, or a slow load becomes a false "nothing new".
   * The shortcut tab bar disappears once an inbox is open, so each inbox is
     loaded by navigating straight to `home_list.aspx` with its EntityId
     instead of clicking back and forth. No frames needed on that page.
@@ -200,20 +206,38 @@ async def check_edoc(username: str, password: str, wanted: list[str]) -> dict:
             # Enumerate the account's inboxes from the ทางลัด (shortcuts) tab.
             inner = page.frame_locator("#iframeHomeBody").frame_locator("#home_list_full")
             await inner.locator(".home-content-tab-shortcuts").click()
-            await page.wait_for_timeout(1500)
-            frame = next((f for f in page.frames if f.name == "home_list"), None)
+            # The links load in stages: a fixed sleep has read none, or only the
+            # first of five (see edoc_digest.open_shortcuts). Poll until the list
+            # is non-empty and unchanged for ~1.5 s — a missing name is reported
+            # as "no new documents" below, so a partial read must not reach it.
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + 20
+            boxes, stable, frame = [], 0, None
+            while loop.time() < deadline:
+                frame = next((f for f in page.frames if f.name == "home_list"), None)
+                now = []
+                if frame is not None:
+                    try:
+                        now = await frame.evaluate(
+                            """() => [...document.querySelectorAll('a.home-shortcuts-open-by-listsource')]
+                                 .map(a => ({name: a.innerText.trim(), eid: a.dataset.entityId}))
+                                 .filter(b => b.name && b.eid)""")
+                    except Exception:
+                        now = []  # frame mid-navigation
+                stable = stable + 1 if now and now == boxes else 0
+                boxes = now
+                if stable >= 3:
+                    break
+                await asyncio.sleep(0.5)
             if frame is None:
                 await browser.close()
                 return system("eDoc", 0, error="inbox frame (home_list) not found")
-
-            boxes = await frame.evaluate(
-                """() => [...document.querySelectorAll('a.home-shortcuts-open-by-listsource')]
-                     .map(a => ({name: a.innerText.trim(), eid: a.dataset.entityId}))""")
             if not boxes:
                 await browser.close()
                 return system("eDoc", 0, error="no inboxes found on the ทางลัด tab")
 
             available = [b["name"] for b in boxes]
+            unknown: list[str] = []
             if wanted:
                 # Match on the name with all whitespace removed. Thai titles are
                 # written both "ผศ. ดร. ณยศ" and "ผศ.ดร.ณยศ", and a config that
@@ -222,7 +246,7 @@ async def check_edoc(username: str, password: str, wanted: list[str]) -> dict:
                 def key(s: str) -> str:
                     return "".join(s.split())
 
-                chosen, unknown = [], []
+                chosen = []
                 for want in wanted:
                     exact = [b for b in boxes if b["name"] == want]
                     hits = exact or [b for b in boxes if key(b["name"]) == key(want)]
@@ -235,11 +259,6 @@ async def check_edoc(username: str, password: str, wanted: list[str]) -> dict:
                             "inbox: " + " | ".join(h["name"] for h in hits)))
                     elif hits[0] not in chosen:
                         chosen.append(hits[0])
-                if unknown:
-                    await browser.close()
-                    return system("eDoc", 0, config_error=True, error=(
-                        "EDOC_INBOX names not found: " + ", ".join(unknown)
-                        + " — available inboxes: " + " | ".join(available)))
                 boxes = chosen
 
             inboxes, items = [], []
@@ -262,8 +281,19 @@ async def check_edoc(username: str, password: str, wanted: list[str]) -> dict:
                     items.append(dict(it, inbox=box["name"]))
 
             await browser.close()
+            extra = {}
+            if unknown:
+                # Not on the ทางลัด tab after a stable read. Observed (Sept 2026)
+                # to happen when the inbox has no new documents, so this is not
+                # a config error. The listed names go in the note so a real typo
+                # is still visible.
+                for want in unknown:
+                    inboxes.append({"name": want, "entity_id": None, "pending": 0,
+                                    "in_list": 0, "items": [], "absent": True})
+                extra["note"] = ("not on the ทางลัด tab, most likely no new documents: "
+                                 + ", ".join(unknown) + " — listed now: " + " | ".join(available))
             return system("eDoc", sum(b["pending"] for b in inboxes),
-                          items[:MAX_ITEMS], inboxes=inboxes)
+                          items[:MAX_ITEMS], inboxes=inboxes, **extra)
 
     except Exception as e:
         return system("eDoc", 0, error=f"{type(e).__name__}: {e}")
@@ -404,6 +434,9 @@ def render(systems: list[dict]) -> None:
             print(f"      ({s['note']})")
 
         for box in s.get("inboxes", []):
+            if box.get("absent"):
+                print(f"  · {box['name']}: not listed (likely no new documents)")
+                continue
             backlog = f"{box['in_list']}{'+' if box.get('list_capped') else ''} in ค้างรับ"
             mark = "·" if box["pending"] == 0 else "•"
             print(f"  {mark} {box['name']}: {box['pending']} new  ({backlog})")

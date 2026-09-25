@@ -2,7 +2,7 @@
 name: pending-docs
 description: Activate this skill when the user asks whether anything is waiting for them in BUU's document systems — "มีเอกสารค้างไหม", "เอกสารค้างรับ", "มีอะไรรอเซ็น", "มีหนังสือเข้าใหม่ไหม", "เช็ค eDoc", "เช็ค e-sign", "check pending documents", "anything waiting for me to sign", "what's in my inbox". Also activate when the user asks for a morning/daily summary of their BUU workload. This skill only checks and reports — it never opens, receives or signs anything.
 allowed-tools: [Bash]
-version: 1.0.0
+version: 1.0.1
 ---
 
 # เอกสารค้าง — eDoc & e-Signature
@@ -64,6 +64,12 @@ irreversible. Neither belongs in a status check.
 - The account has **several inboxes** — personal, faculty, department and any
   role the user holds. They are discovered at run time. Report them separately;
   a document in the faculty inbox is not necessarily the user's to handle.
+- `absent: true` — an `EDOC_INBOX` name that is not on eDoc's ทางลัด tab right
+  now. That usually just means the inbox has **no new documents** (an inbox
+  with nothing new can drop off the tab), so **don't be alarmed and don't call
+  it an error**: report it as "no new documents" (ไม่มีหนังสือใหม่). The
+  system's `note` lists the inboxes that *are* on the tab; mention it only if
+  the user asks, or if the configured name looks like a typo of a listed one.
 - eDoc filters the list to the current Buddhist-era year. Anything older is not
   shown by eDoc itself and is therefore not counted.
 
@@ -101,8 +107,9 @@ If everything is zero, say so in one line. Do not pad it.
 say that system could not be checked and quote the message. Reporting zero for
 a system that failed to log in is the one genuinely harmful outcome here.
 
-Exit **3** means credentials are missing, or `EDOC_INBOX` names an inbox that
-does not exist — the error message lists the real inbox names. Fix is in
+Exit **3** means credentials are missing, or an `EDOC_INBOX` name matches more
+than one inbox. (A name that matches *no* inbox is not an error — see
+`absent` above.) Fix is in
 **`~/.config/nk-work-kit/.env`** — the one config file for the whole plugin
 (copy `scripts/.env.example` into it). A `.env` beside the script still works
 as a fallback, but it is lost on the next plugin upgrade, so prefer
@@ -118,8 +125,8 @@ ESIGN_PASSWORD=
 
 Tell the user what to fill in — never type credentials into the browser or the
 file on their behalf, and never echo the contents of `.env` back to them.
-Leaving `EDOC_INBOX` empty is the recommended setting: every inbox gets
-checked, and no stale name can silently hide an inbox.
+Leaving `EDOC_INBOX` empty is the recommended setting: every inbox on the
+ทางลัด tab gets checked.
 
 ## Requirements
 

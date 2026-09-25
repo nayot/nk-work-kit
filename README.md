@@ -200,8 +200,11 @@ uv run scripts/check_pending.py --only esign
 An eDoc account usually has several inboxes — personal, faculty, department,
 and any role the user holds. The script discovers them at run time and reports
 each one separately, so leave `EDOC_INBOX` empty unless you want to narrow the
-check; an `EDOC_INBOX` name that matches no inbox is a hard error rather than a
-silent zero.
+check. An `EDOC_INBOX` name that is not on eDoc's ทางลัด tab is reported as
+"not listed (likely no new documents)" rather than an error — an inbox with
+nothing new can drop off the tab — together with the names that are listed,
+so a typo still shows. The same applies to `EDOC_DIGEST_INBOX` in
+`edoc-digest`.
 
 Two eDoc numbers are reported per inbox and they are not the same: documents
 marked **ใหม่/ยังไม่ได้อ่าน** (the actionable count) and the full

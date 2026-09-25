@@ -68,6 +68,11 @@ HARD-WON DETAILS — do not "simplify" these away:
     stream never settles. A short sleep is enough.
   * A realistic desktop UA and viewport are required; the portal serves a
     broken page to bare headless Chromium.
+  * A configured inbox that is not on the ทางลัด tab is reported as `absent`
+    (0 selected), not an error: it was observed (Sept 2026, by the user; not
+    confirmed against eDoc) that an inbox with no new documents can drop off
+    the tab. This relies on open_shortcuts' stability poll — without it a
+    slow load would read as "nothing new". Ambiguous names still error.
 """
 import argparse
 import asyncio
@@ -225,23 +230,28 @@ def text_quality(text: str, pages: int | None) -> str:
     return "garbled" if latin_ext > thai else "ok"
 
 
-def match_inboxes(boxes: list[dict], wanted: list[str]) -> list[dict]:
-    """Whitespace-insensitive name match, as in check_pending.py. Errors, never guesses."""
+def match_inboxes(boxes: list[dict], wanted: list[str]) -> tuple[list[dict], list[str]]:
+    """Whitespace-insensitive name match, as in check_pending.py.
+
+    Returns (matched boxes, names not on the tab). Ambiguity errors, never guesses.
+    """
     def key(s: str) -> str:
         return "".join(s.split())
-    chosen = []
+    chosen, missing = [], []
     for want in wanted:
         hits = [b for b in boxes if b["name"] == want] or \
                [b for b in boxes if key(b["name"]) == key(want)]
         if not hits:
-            raise LookupError(f"inbox {want!r} not found — available: "
-                              + " | ".join(b["name"] for b in boxes))
+            # Not on the ทางลัด tab — observed (Sept 2026) to mean the inbox has
+            # no new documents, so it is reported as absent, not an error.
+            missing.append(want)
+            continue
         if len(hits) > 1:
             raise LookupError(f"inbox {want!r} is ambiguous: "
                               + " | ".join(h["name"] for h in hits))
         if hits[0] not in chosen:
             chosen.append(hits[0])
-    return chosen
+    return chosen, missing
 
 
 # ── browser steps ─────────────────────────────────────────────────────────────
@@ -470,7 +480,8 @@ async def run(args, username: str, password: str, wanted: list[str], out_dir: Pa
             page = await ctx.new_page()
             page.on("dialog", on_dialog)
             await login(page, username, password)
-            boxes = match_inboxes(await open_shortcuts(page), wanted)
+            listed = await open_shortcuts(page)
+            boxes, missing = match_inboxes(listed, wanted)
             for n, box in enumerate(boxes):
                 if n:
                     await open_shortcuts(page)  # the tab bar is gone once an inbox is open
@@ -492,6 +503,10 @@ async def run(args, username: str, password: str, wanted: list[str], out_dir: Pa
                                                        args.receive, alerts))
         finally:
             await browser.close()
+    for name in missing:
+        inboxes.append({"name": name, "entity_id": None, "selected": 0, "absent": True,
+                        "note": "not on the ทางลัด tab, most likely no new documents — listed now: "
+                                + " | ".join(b["name"] for b in listed)})
     return {"inboxes": inboxes, "documents": docs}
 
 
@@ -516,6 +531,9 @@ def write_manifest(out_dir: Path, result: dict) -> Path:
 
 def render(result: dict) -> None:
     for box in result["inboxes"]:
+        if box.get("absent"):
+            print(f"{box['name']}: not listed (likely no new documents)")
+            continue
         print(f"{box['name']}: {box['selected']} selected")
     for d in result["documents"]:
         mark = "!" if d["error"] else ("✓" if d["received"] else "·")

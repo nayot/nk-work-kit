@@ -3,7 +3,7 @@ name: edoc-digest
 description: Activate this skill when the user wants the documents in their BUU eDoc inbox fetched, read and summarised, or ลงรับ'd — "สรุปเอกสาร eDoc", "สรุปหนังสือเข้า", "วิเคราะห์เอกสารใน eDoc", "อ่านหนังสือเข้าให้หน่อย", "ลงรับเอกสาร", "ลงรับหนังสือ", "digest my eDoc inbox", "summarise my new eDoc documents", "what's important in eDoc", "flag the urgent documents". Downloads each unread document and its PDFs, ลงรับ each one, and writes a summary report with important documents flagged and linked to their PDFs. Never signs (ลงนาม). For a quick count of what is waiting, without opening or receiving anything, use pending-docs instead.
 argument-hint: "[--all] [--limit N] [--inbox NAME]"
 allowed-tools: [Bash, Read, Write]
-version: 1.0.0
+version: 1.0.1
 ---
 
 # สรุปเอกสาร eDoc — fetch, ลงรับ, analyse, flag
@@ -80,6 +80,14 @@ The JSON printed on stdout covers **this run's** documents:
 }
 ```
 
+An inbox entry with `"absent": true` (and `entity_id: null`, `selected: 0`)
+is a configured inbox that is not on eDoc's ทางลัด tab right now. That usually
+just means it has **no new documents** — an inbox with nothing new can drop
+off the tab — so **don't be alarmed and don't treat it as a failure**. Say
+"ไม่มีเอกสารใหม่ใน <inbox>" in one line. Its `note` lists the inboxes that are
+on the tab; mention it only if the user asks or the configured name looks like
+a typo of a listed one.
+
 `received` is `true`, `false` (tried and failed/refused — see `receive_note`),
 or `null` (not requested). `error` is set when the document could not be read at
 all; its attachments may be missing.
@@ -92,7 +100,7 @@ all; its attachments may be missing.
 |---|---|---|
 | 0 | every document processed | analyse |
 | 1 | login/navigation failed, or at least one document has `error` | report what did work; name the failures |
-| 3 | configuration: no credentials, no inbox chosen, or an inbox name that matches nothing | relay the message — it lists the real inbox names. The user fixes `~/.config/nk-work-kit/.env` |
+| 3 | configuration: no credentials, no inbox chosen, or an ambiguous inbox name | relay the message — it lists the matching inbox names. The user fixes `~/.config/nk-work-kit/.env` |
 
 ## Analysing
 
