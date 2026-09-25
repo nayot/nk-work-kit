@@ -3,7 +3,7 @@ name: project-manager
 description: Activate this skill when the user wants to see or update the status of their ongoing projects, tracked as notes in their Obsidian vault — "project status", "สถานะโครงการ", "สถานะโปรเจกต์", "update the X project", "อัปเดตโครงการ", "what's due this week", "มีอะไรใกล้ถึงกำหนด", "มีอะไรเลยกำหนด", "what's overdue", "add a new project", "เพิ่มโครงการ", "update the dashboard", "project digest", "set up project tracking", "ตั้งค่าติดตามโครงการ". Also activate after a meeting summary, transcript, memo, document number or eDoc item clearly belongs to a tracked project — offer to log it there. Can set up a scheduled email digest of upcoming and overdue items.
 argument-hint: "[setup | status | due | update <project> | new <name> | dashboard | setup-notify]"
 allowed-tools: [Bash, Read, Edit, Write]
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Project manager — Obsidian as database and dashboard
@@ -81,8 +81,10 @@ before every write. It must never modify the user's existing notes.
    - pick a mail method;
    - `notify --dry-run`, then a single `notify --force` to the user's own
      address, and confirm it arrived;
-   - schedule it to suit their machines: an always-on server, a desktop timer
-     with `Persistent=true`, or none.
+   - schedule it using the layout table under **Scheduling**. Ask whether the
+     desktop stays on and whether an always-on server can see the vault. If
+     the desktop is often off, offer the **dashboard-only timer** there so the
+     dashboard stays current, even when a server sends the email.
 
    If the user's instructions require approval before sending email, get an
    explicit standing exception for this digest first, and record it where they
@@ -221,6 +223,19 @@ send to the user's own `PM_NOTIFY_TO`.
 
 ### Scheduling, when the user asks to set it up
 
+First, pick the layout from the user's machines. **Exactly one** machine
+writes the dashboard, and **exactly one** sends the email:
+
+| User has | Dashboard (on the vault's machine) | Email digest |
+|---|---|---|
+| A desktop that is always on | email timer's `dashboard` step | desktop email timer |
+| A desktop that is often off | desktop **dashboard-only timer** | desktop email timer (`Persistent=true` catches up after boot) |
+| Desktop + always-on server | desktop **dashboard-only timer** | **server** email timer, running `notify` only when it sees a one-way copy of the vault |
+| No machine to schedule on | Claude rebuilds it on each update | none, or a cloud routine that writes a Gmail draft |
+
+Offer the matching timers. Ask whether the machine stays on, and whether an
+always-on server with access to the vault exists.
+
 Test first: run `notify --dry-run`, then `notify --force` once, and confirm the
 message arrived.
 
@@ -252,18 +267,37 @@ message arrived.
 
   Then run `systemctl --user daemon-reload && systemctl --user enable --now nk-projects-notify.timer`.
   `Persistent=true` catches up after the machine was off at 07:00.
-- **Dashboard-only timer, for a machine that isn't always on.** It rebuilds the
-  dashboard after login and every 3 hours, and never sends email. Use it on
-  the desktop when a server does the email. It needs a
-  `nk-projects-dashboard.service` with only the `dashboard` ExecStart, and a
-  `nk-projects-dashboard.timer`:
+- **Dashboard-only timer, for a machine that isn't always on.** The
+  dashboard's "today / in 3d / 2d late" labels are fixed when it is rebuilt,
+  so on a machine that is often off it can show stale labels. This timer
+  rebuilds it 2 minutes after login and every 3 hours after that, and **never
+  sends email**, so it can run as often as needed. Install it on the machine
+  that owns the dashboard (usually the desktop where the vault lives),
+  alongside or instead of the email timer.
+
+  `~/.config/systemd/user/nk-projects-dashboard.service`:
   ```ini
+  [Unit]
+  Description=nk-work-kit project dashboard
+  [Service]
+  Type=oneshot
+  ExecStart=<uv> run <plugin-root>/scripts/projects.py dashboard
+  ```
+
+  `~/.config/systemd/user/nk-projects-dashboard.timer`:
+  ```ini
+  [Unit]
+  Description=Rebuild project dashboard after login and every 3h
   [Timer]
   OnStartupSec=2min
   OnUnitActiveSec=3h
   [Install]
   WantedBy=timers.target
   ```
+
+  Then run `systemctl --user daemon-reload && systemctl --user enable --now nk-projects-dashboard.timer`.
+  On macOS, use a launchd agent with `RunAtLoad` and `StartInterval=10800`.
+  On Windows, use a Task Scheduler task "At log on", repeating every 3 hours.
 - **macOS:** a launchd agent with `StartCalendarInterval`. **Windows:** Task
   Scheduler running `uv run …\projects.py notify`. **Any Unix with cron:**
   `0 7 * * 1-5 <uv> run <plugin-root>/scripts/projects.py notify`.
