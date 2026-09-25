@@ -13,6 +13,7 @@ A Claude Code **plugin** (`nk-work-kit`) and its own **marketplace** (`nayot-buu
 | `pending-docs` | `check_pending.py` (eDoc + e-Signature, read-only) | `uv run` (PEP 723 inline deps) |
 | `edoc-digest` | `edoc_digest.py` (fetch unread eDoc docs + PDFs, ลงรับ; Claude writes the flagged report) | `uv run` (PEP 723 inline deps) |
 | `transcribe` | `transcribe.py` (audio → Markdown via OpenRouter) | `uv run` (PEP 723 inline deps) |
+| `project-manager` | `projects.py` (Obsidian hub notes → `Projects/Dashboard.md`; email digest) | `uv run` (PEP 723 inline deps) |
 
 ## Running scripts directly
 
@@ -25,6 +26,7 @@ python3 scripts/docnum.py login | whoami | list [--json] [--all] | request ... |
 uv run scripts/check_pending.py [--json] [--only edoc|esign]
 uv run scripts/edoc_digest.py [--receive] [--all] [--limit N] [--inbox NAME] [--json]
 uv run scripts/transcribe.py rec.m4a --model google/gemini-2.5-flash --yes
+uv run scripts/projects.py list [--json] | dashboard | digest [--days N] | notify [--dry-run] [--force] | new "Name"
 
 uv run --with playwright==1.60.0 playwright install chromium        # one-time, for check_pending
 ```
@@ -40,6 +42,7 @@ Local plugin install for testing: `claude plugin marketplace add ./` then `claud
   - `check_pending.py` is **read-only by construction**. Never open, receive, sign or forward a document: opening one in eDoc marks it read. เอกสารลับ are counted, never opened.
   - eDoc inboxes are discovered at run time. An `EDOC_INBOX` name that matches nothing is a hard error, never a silent zero. Name matching ignores whitespace, because Thai titles appear both as "ผศ. ดร. X" and "ผศ.ดร.X". Two counts are reported per inbox: unread/ใหม่ (the actionable one) and the full ค้างรับ list, which the server caps at 500.
   - `edoc_digest.py` writes to eDoc only with `--receive`, and only after a doc's attachments are on disk. It refuses to ลงรับ unless the dialog preselects ไม่ออกเลข/ใช้หมายเลขเดิม (a number book would issue a new เลขรับ), and never signs. It must stay separate from `check_pending.py`, whose read-only promise the `pending-docs` skill relies on. Its docstring has a HARD-WON DETAILS block: ลงรับ only works from `home.aspx` (the dialog lives on the parent page), and attachment links carry per-render tokens. Downloads go to `~/.local/share/nk-work-kit/edoc/<date>/`.
+  - `projects.py` writes only `<vault>/<PM_FOLDER>/Dashboard.md` (atomically: the vault is synced while it runs) and new hub notes via `new`; it never edits other notes, and skips `.obsidian/`, `.trash/`, `Confidential/`. `notify` sends only to `PM_NOTIFY_TO` and only when something is due — the user's "no email without approval" rule has a standing exception for exactly this digest. Its config lookup is a copy of `check_pending.py`'s; keep them aligned.
   - `docnum.py request` is irreversible and asks for confirmation first. `cancel` works only within 24 hours.
 - **`docnum.py` has a "HARD-WON DETAILS" block in its docstring. Do not simplify those behaviours away.** It calls the app's `google.script.run` server functions inside the `script.googleusercontent.com` `/blank` iframe, bypassing the wizard. Chromium must run **headed**, placed offscreen: headless stalls at Google's confirmidentifier. The GPU is disabled. `requester` is an email address, not a name.
 - **`transcribe.py` is vendored** from github.com/nayot/autoTranscribe, which remains the source of truth. Upstream is where fixes belong. Local divergences are marked `# LOCAL CHANGE` (shared config lookup, UTF-8 stdout/stderr, ffmpeg/ffprobe resolution + UTF-8 decoding of their output) and must be re-applied after each re-sync.

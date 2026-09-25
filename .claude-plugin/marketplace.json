@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "nk-work-kit",
-      "description": "Everyday work toolkit for BUU Faculty of Engineering: draft Thai official documents — บันทึกข้อความภายใน (internal memo) and หนังสือภายนอก (external letter) — from OTT templates to ODT/PDF; request, list or cancel document numbers in ระบบขอเลขเอกสารอัตโนมัติ; upload finished documents to BUU e-Signature; check what is still pending in eDoc and e-Signature; fetch, ลงรับ and summarise new eDoc documents with the important ones flagged; and transcribe meeting audio (Thai/English/mixed) to Markdown via OpenRouter.",
+      "description": "Everyday work toolkit for BUU Faculty of Engineering: draft Thai official documents — บันทึกข้อความภายใน (internal memo) and หนังสือภายนอก (external letter) — from OTT templates to ODT/PDF; request, list or cancel document numbers in ระบบขอเลขเอกสารอัตโนมัติ; upload finished documents to BUU e-Signature; check what is still pending in eDoc and e-Signature; fetch, ลงรับ and summarise new eDoc documents with the important ones flagged; transcribe meeting audio (Thai/English/mixed) to Markdown via OpenRouter; and track ongoing projects in an Obsidian vault with a generated dashboard and an optional email digest of upcoming and overdue items.",
       "author": {
         "name": "Nayot Kurukitkoson",
         "email": "nayot@eng.buu.ac.th"

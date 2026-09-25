@@ -11,6 +11,7 @@ Engineering, Burapha University.
 | `pending-docs` | Report what is still waiting in **eDoc** (หนังสือค้างรับ) and **e-Signature** (รอลงนาม) — read-only |
 | `edoc-digest` | Fetch unread **eDoc** documents and their PDFs, **ลงรับ** them, and write a summary report with important ones flagged and linked to their PDFs — never signs |
 | `transcribe` | Turn a meeting recording into a Markdown transcript — Thai, English or mixed |
+| `project-manager` | Track ongoing projects as notes in an **Obsidian** vault: a generated dashboard with links to the notes, updates while you work, and an optional email digest of upcoming and overdue items |
 
 Ask Claude in your own words, or use the slash commands below.
 
@@ -24,6 +25,8 @@ Ask Claude in your own words, or use the slash commands below.
   [Audio transcription](#audio-transcription).
 - For the `pending-docs` skill only: [`uv`](https://docs.astral.sh/uv/) and
   Chromium for Playwright — see [Pending documents](#pending-documents).
+- For the `project-manager` skill only: [`uv`](https://docs.astral.sh/uv/) and an
+  Obsidian vault — see [Project manager](#project-manager).
 
 ## Install
 
@@ -235,6 +238,54 @@ uv run scripts/edoc_digest.py --all --receive        # also rows already read bu
 
 Opening a document marks it read in eDoc, so a second run finds nothing
 unread; `--all` picks up anything still in ค้างรับ.
+
+## Project manager
+
+The `project-manager` skill wraps `scripts/projects.py` and uses an Obsidian
+vault as both database and dashboard. Each project is a **hub note** (by
+convention in `Projects/`) with `type: project` frontmatter — `status`,
+`priority`, `next_action`, `next_action_due`, `waiting_on`, `updated` — plus
+Tasks-plugin checkboxes (`- [ ] … 📅 YYYY-MM-DD`). Hub notes link to your
+existing meeting notes instead of replacing them; a task in any other note
+counts for a project when its line links the hub.
+
+While you work, Claude updates the hub notes (ticks tasks, logs meetings,
+moves the next action) and regenerates `Projects/Dashboard.md`: overdue and
+upcoming items, active projects with a stale flag, waiting-on-others, and live
+Tasks/Dataview views. No Obsidian plugin is required; Tasks and Dataview
+blocks light up if you have them.
+
+Setup — add to [`~/.config/nk-work-kit/.env`](#configuration):
+
+```
+OBSIDIAN_VAULT=/path/to/your/vault
+```
+
+Direct use:
+
+```bash
+uv run scripts/projects.py list [--json]
+uv run scripts/projects.py dashboard
+uv run scripts/projects.py digest --days 14
+uv run scripts/projects.py new "Project name" --area X --due 2026-12-15
+uv run scripts/projects.py notify --dry-run
+```
+
+**Email digest (optional).** `notify` emails `PM_NOTIFY_TO` only when something
+is overdue or due within `PM_NOTIFY_DAYS`; each item links to its note with an
+`obsidian://` URL. Send via your own Google Cloud OAuth client
+(`PM_MAIL_METHOD=gmail-oauth`: a Desktop-app client with an Internal consent
+screen, the Gmail API enabled, saved as `~/.config/nk-work-kit/credentials.json`;
+run `projects.py auth-gmail` once), via SMTP (`PM_MAIL_METHOD=smtp`, e.g. a
+Gmail app password), or via gcloud ADC (`PM_MAIL_METHOD=gmail-api`, often
+blocked by Google for Gmail scopes). Schedule it with a systemd user timer,
+cron, launchd or Task Scheduler — see
+[`skills/project-manager/SKILL.md`](skills/project-manager/SKILL.md). An always-on
+server can send it instead: a git clone plus the config files is enough, no
+plugin or Claude Code needed, and it runs `notify` only when it sees a one-way
+copy of the vault. The skill page walks through it. Without
+an always-on machine, skip the schedule and ask Claude "what's due?", or use a
+Claude cloud routine that writes a Gmail draft.
 
 ## Audio transcription
 
