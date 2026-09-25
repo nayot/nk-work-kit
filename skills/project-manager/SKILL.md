@@ -3,7 +3,7 @@ name: project-manager
 description: Activate this skill when the user wants to see or update the status of their ongoing projects, tracked as notes in their Obsidian vault — "project status", "สถานะโครงการ", "สถานะโปรเจกต์", "update the X project", "อัปเดตโครงการ", "what's due this week", "มีอะไรใกล้ถึงกำหนด", "มีอะไรเลยกำหนด", "what's overdue", "add a new project", "เพิ่มโครงการ", "update the dashboard", "project digest", "set up project tracking", "ตั้งค่าติดตามโครงการ". Also activate after a meeting summary, transcript, memo, document number or eDoc item clearly belongs to a tracked project — offer to log it there. Can set up a scheduled email digest of upcoming and overdue items.
 argument-hint: "[setup | status | due | update <project> | new <name> | dashboard | setup-notify]"
 allowed-tools: [Bash, Read, Edit, Write]
-version: 1.3.0
+version: 1.3.1
 ---
 
 # Project manager — Obsidian as database and dashboard
@@ -202,6 +202,10 @@ opens in the Obsidian desktop app. The mail method is `PM_MAIL_METHOD`:
     Internal consent screen in the BUU Workspace). An account outside that
     organisation gets "restricted to users within its organization": that user
     needs their own client (below) or `smtp`.
+  - The bundled client file is public on purpose: Google treats an installed
+    app's client secret as non-confidential, and the Internal consent screen
+    limits it to BUU accounts. The per-user `gmail-token.json` **is** secret:
+    never copy it into the repo, a chat or a shared folder.
   - **Own client (optional):** create a Google Cloud project under the
     Workspace organisation, enable the **Gmail API**, set the consent screen to
     **Internal** with the single scope `gmail.send`, create an OAuth client ID

@@ -2,3 +2,8 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# Per-user OAuth secrets: never commit. (scripts/gmail_oauth_client.json is
+# the bundled installed-app client and is committed on purpose.)
+gmail-token.json
+credentials.json
