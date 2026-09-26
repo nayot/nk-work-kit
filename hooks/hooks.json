@@ -1,0 +1,17 @@
+{
+  "description": "Write or refresh the project-manager user manual in the Obsidian vault after the plugin is installed or updated. Does nothing when project tracking isn't set up.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "command -v uv >/dev/null 2>&1 && uv run --quiet \"${CLAUDE_PLUGIN_ROOT}/scripts/projects.py\" manual --quiet 2>/dev/null || true",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

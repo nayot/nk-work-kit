@@ -3,7 +3,7 @@ name: project-manager
 description: Activate this skill when the user wants to see or update the status of their ongoing projects, tracked as notes in their Obsidian vault — "project status", "สถานะโครงการ", "สถานะโปรเจกต์", "update the X project", "อัปเดตโครงการ", "what's due this week", "มีอะไรใกล้ถึงกำหนด", "มีอะไรเลยกำหนด", "what's overdue", "add a new project", "เพิ่มโครงการ", "update the dashboard", "project digest", "set up project tracking", "ตั้งค่าติดตามโครงการ". Also activate after a meeting summary, transcript, memo, document number or eDoc item clearly belongs to a tracked project — offer to log it there. Can set up a scheduled email digest of upcoming and overdue items.
 argument-hint: "[setup | status | due | update <project> | new <name> | dashboard | setup-notify]"
 allowed-tools: [Bash, Read, Edit, Write]
-version: 1.3.1
+version: 1.4.0
 ---
 
 # Project manager — Obsidian as database and dashboard
@@ -40,7 +40,13 @@ before every write. It must never modify the user's existing notes.
    - how the vault syncs (Obsidian Sync, Syncthing, rclone, cloud drive).
 
    The sync method matters later for scheduling and for which machine writes
-   the dashboard. Fit the hub notes to what you find: reuse the user's due-date
+   the dashboard. If Dataview is missing, recommend installing it: the
+   dashboard's live views need it (Settings → Community plugins → Browse →
+   Dataview → Install → Enable). The user installs plugins, not you. Also
+   suggest two Dataview settings, **Automatic task completion tracking** and
+   **Use emoji shorthand for completion**, so that ticking a task in the
+   dashboard writes `✅ <date>` as this model expects. Never edit
+   `.obsidian/` yourself. Fit the hub notes to what you find: reuse the user's due-date
    format and don't impose a folder layout.
 3. **Find candidate projects.** Look for:
    - notes edited in the last 60–90 days;
@@ -82,9 +88,8 @@ before every write. It must never modify the user's existing notes.
    - `notify --dry-run`, then a single `notify --force` to the user's own
      address, and confirm it arrived;
    - schedule it using the layout table under **Scheduling**. Ask whether the
-     desktop stays on and whether an always-on server can see the vault. If
-     the desktop is often off, offer the **dashboard-only timer** there so the
-     dashboard stays current, even when a server sends the email.
+     desktop stays on and whether an always-on server can see the vault. The
+     Dataview dashboard is live, so it needs no timer of its own.
 
    If the user's instructions require approval before sending email, get an
    explicit standing exception for this digest first, and record it where they
@@ -125,7 +130,8 @@ any other note counts for a project when its line links the hub
 | Command | Use |
 |---|---|
 | `list --json` | Read every project with its dated items. **Start here** for any status question. |
-| `dashboard` | Rewrite `Projects/Dashboard.md`. Run after every change. |
+| `dashboard` | Rewrite `Projects/Dashboard.md` (and write the manual if it is missing or outdated). Run after every change. |
+| `manual [--force]` | Write `Projects/User Manual.md`, the bilingual (English/Thai) user manual, linked both ways with the dashboard. |
 | `digest [--days N] [--format text\|html\|json]` | Overdue and upcoming items. The default window is `PM_NOTIFY_DAYS` (14). |
 | `notify [--dry-run] [--force]` | Email the digest to `PM_NOTIFY_TO`. It stays silent when nothing is due. |
 | `auth-gmail` | One-time browser sign-in for `PM_MAIL_METHOD=gmail-oauth`. |
@@ -174,19 +180,43 @@ hand-edit it.
 
 ## The dashboard
 
-`Projects/Dashboard.md` contains:
+`Projects/Dashboard.md` is made of **live Dataview views**:
 
-- 🔴 Overdue and 🟡 Due in the next N days, one row per item, linked to its
-  hub and source note;
-- a table of active projects with a stale flag;
-- Waiting on others;
-- collapsed On hold / Ideas and Done sections;
-- live views: a Tasks-plugin query (always current) and a Dataview table, which
-  renders only if Dataview is installed.
+- 🔴 Overdue and 🟡 Due in the next N days (`PM_NOTIFY_DAYS`). Each has a
+  `TASK` view of dated tasks, grouped by note, and a table of next actions and
+  project deadlines that no open task already restates;
+- Active projects, with priority, next action, waiting-on and a stale flag
+  (`PM_STALE_DAYS`);
+- Waiting on others.
 
-The dashboard is regenerated whenever `dashboard` runs, not live, so run it
-after every update. A scheduled `notify` run does not rebuild it. Add a
-`dashboard` step to the timer if the user wants it refreshed daily.
+The views follow `projects.py`'s rules: a task counts when it sits in a hub
+under `PM_FOLDER` or links to one, has a `📅` date, and isn't done or
+cancelled. They re-render as soon as any note changes. Ticking a task in a
+`TASK` view edits the source note, and Dataview (not the Tasks plugin) handles
+that click, so `✅ <date>` is written only when the two Dataview settings from
+setup are on.
+
+Above the views, a callout explains how to install Dataview. It is expanded
+when the vault's `.obsidian/community-plugins.json` doesn't enable Dataview,
+and collapsed when it does. Without Dataview the dashboard shows only code
+blocks, so answer status questions from `list --json` or the digest.
+
+The dashboard links to **`User Manual.md`** in the same folder, a bilingual
+(English and Thai) guide for the user. It is written from
+`templates/project-manager-manual.md` and carries `plugin_version` in its
+frontmatter. The plugin's `SessionStart` hook (`hooks/hooks.json`) runs
+`manual --quiet` at startup. That call rewrites the manual only when it is
+missing or was written by another plugin version, so it refreshes in the first
+session after an install or update. It does nothing when the vault or the
+projects folder isn't set up. The manual is generated, so never hand-edit it;
+edit the template instead. When the user asks how the system works, point
+them to it.
+
+The views need no rebuild when notes change. Run `dashboard` once at setup,
+and again after changing `PM_FOLDER`, `PM_NOTIFY_DAYS` or `PM_STALE_DAYS`
+(all baked into the queries) or after installing Dataview (to collapse the
+install callout). Don't paste the DQL into answers: answer status questions
+from `list --json` as described above.
 
 ## Email digest (optional)
 
@@ -235,8 +265,8 @@ writes the dashboard, and **exactly one** sends the email:
 | User has | Dashboard (on the vault's machine) | Email digest |
 |---|---|---|
 | A desktop that is always on | email timer's `dashboard` step | desktop email timer |
-| A desktop that is often off | desktop **dashboard-only timer** | desktop email timer (`Persistent=true` catches up after boot) |
-| Desktop + always-on server | desktop **dashboard-only timer** | **server** email timer, running `notify` only when it sees a one-way copy of the vault |
+| A desktop that is often off | none needed (Dataview is live) | desktop email timer (`Persistent=true` catches up after boot) |
+| Desktop + always-on server | desktop (Claude's `dashboard` runs) | **server** email timer, running `notify` only when it sees a one-way copy of the vault |
 | No machine to schedule on | Claude rebuilds it on each update | none, or a cloud routine that writes a Gmail draft |
 
 Offer the matching timers. Ask whether the machine stays on, and whether an
@@ -273,10 +303,9 @@ message arrived.
 
   Then run `systemctl --user daemon-reload && systemctl --user enable --now nk-projects-notify.timer`.
   `Persistent=true` catches up after the machine was off at 07:00.
-- **Dashboard-only timer, for a machine that isn't always on.** The
-  dashboard's "today / in 3d / 2d late" labels are fixed when it is rebuilt,
-  so on a machine that is often off it can show stale labels. This timer
-  rebuilds it 2 minutes after login and every 3 hours after that, and **never
+- **Dashboard-only timer (optional).** The Dataview views are always
+  current, so this timer is rarely needed now. It only picks up config changes
+  without a manual `dashboard` run. It rebuilds the dashboard 2 minutes after login and every 3 hours after that, and **never
   sends email**, so it can run as often as needed. Install it on the machine
   that owns the dashboard (usually the desktop where the vault lives),
   alongside or instead of the email timer.
@@ -321,7 +350,7 @@ message arrived.
      Drive), the server runs **`notify` only**: remove the `dashboard`
      ExecStart from its service. Anything it writes would never reach the
      desktop and would be overwritten. The desktop keeps the dashboard, using
-     the dashboard-only timer above plus Claude's updates. Only with two-way
+     Claude's `dashboard` runs. Only with two-way
      sync (Syncthing, Obsidian Sync, or the vault living on the server) may
      the server run `dashboard` too, and even then only one machine should
      write it.

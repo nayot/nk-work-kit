@@ -13,6 +13,7 @@ projects.py — project tracking on top of an Obsidian vault.
 
     uv run projects.py list [--json]            every project + its dated items
     uv run projects.py dashboard                rewrite <vault>/Projects/Dashboard.md
+    uv run projects.py manual [--quiet] [--force]   write Projects/User Manual.md
     uv run projects.py digest [--days 14] [--format text|html|json]
     uv run projects.py notify [--dry-run] [--force]
     uv run projects.py auth-gmail               one-time browser sign-in (gmail-oauth)
@@ -39,8 +40,10 @@ line links to the hub note (`[[Hub name]]`). Done (`[x]`) and cancelled (`[-]`)
 tasks are ignored.
 
 The vault is never scanned inside `.obsidian/`, `.trash/` or `Confidential/`
-(meld-encrypt notes). The only file this script writes is the dashboard, and it
-writes it atomically (temp file + rename), because the vault is synced by
+(meld-encrypt notes); from `.obsidian/` it reads only community-plugins.json,
+to see whether Dataview is on. It writes only the dashboard, the user manual
+(when missing or from another plugin version) and new hubs via `new`, each
+atomically (temp file + rename), because the vault is synced by
 rclone/Obsidian Sync while it may be running.
 
 NOTIFY
@@ -95,6 +98,9 @@ PRIORITY_ORDER = {"high": 0, "normal": 1, "low": 2}
 TASK_RE = re.compile(r"^\s*[-*] \[(?P<mark>.)\] (?P<body>.*)$")
 DUE_RE = re.compile(r"📅\s*(\d{4}-\d{2}-\d{2})")
 DASHBOARD_NAME = "Dashboard.md"
+MANUAL_NAME = "User Manual.md"
+PLUGIN_ROOT = Path(__file__).resolve().parent.parent
+MANUAL_TEMPLATE = PLUGIN_ROOT / "templates" / "project-manager-manual.md"
 
 
 # ---------------------------------------------------------------- config
@@ -225,9 +231,12 @@ def scan(vault: Path) -> list[Project]:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        notes[rel] = text
         meta, _ = split_frontmatter(text)
-        if str(meta.get("type", "")).lower() != "project":
+        kind = str(meta.get("type", "")).lower()
+        if kind in ("dashboard", "manual"):     # generated; the manual has example tasks
+            continue
+        notes[rel] = text
+        if kind != "project":
             continue
         name = path.stem
         p = Project(
@@ -315,12 +324,6 @@ def rel_days(due: str) -> str:
 
 # ---------------------------------------------------------------- links
 
-def wikilink(rel: str, alias: str | None = None, table: bool = False) -> str:
-    target = rel[:-3] if rel.endswith(".md") else rel
-    sep = "\\|" if table else "|"
-    return f"[[{target}{sep}{alias}]]" if alias else f"[[{target}]]"
-
-
 def obsidian_uri(vault: Path, rel: str) -> str:
     # The vault's name in the desktop app; override when this machine's copy of
     # the vault sits in a differently named folder (e.g. a server).
@@ -330,88 +333,109 @@ def obsidian_uri(vault: Path, rel: str) -> str:
     return f"obsidian://open?{q}"
 
 
-def cell(s: str) -> str:
-    return s.replace("|", "\\|").replace("\n", " ")
-
 
 # ---------------------------------------------------------------- dashboard
 
-def render_dashboard(vault: Path, projects: list[Project], days: int, stale_days: int) -> str:
-    overdue, soon = buckets(projects, days)
-    by_name = {p.name: p for p in projects}
+def dataview_enabled(vault: Path) -> bool:
+    """True when the vault has the Dataview community plugin switched on."""
+    try:
+        enabled = json.loads((vault / ".obsidian" / "community-plugins.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return isinstance(enabled, list) and "dataview" in enabled
+
+
+def dataview_blocks(folder: str, days: int, stale_days: int) -> list[str]:
+    """Live Dataview views of the projects and their dated items. They re-render
+    whenever a note changes, and ticking a task in a TASK view edits its note.
+
+    The script's rules, in DQL: a task belongs to a project when it sits in a
+    hub note under PM_FOLDER or its line links to one; done (`[x]`) and
+    cancelled (`[-]`) tasks don't count, nor do tasks in a done/dropped hub.
+    A TASK view can't show frontmatter dates, so next actions and project
+    deadlines get a TABLE of their own under each date heading, skipping a
+    date an open task in the hub already carries (as buckets() does).
+
+    Dataview gives each task its page's fields unless the task has its own
+    (executeTask in Dataview 0.5.68): an undated task in a hub with `due:` in
+    its frontmatter has that `due`. Hence the `📅` test on the task text."""
+    prefix = folder.rstrip("/") + "/"
+    in_project = (f'(startswith(file.path, "{prefix}") OR '
+                  f'any(outlinks, (o) => startswith(meta(o).path, "{prefix}")))')
+    open_task = ('!completed AND status != "-" AND contains(text, "📅") AND '
+                 '!contains(list("done", "dropped"), file.frontmatter.status)')
+    task_dates = 'filter(file.tasks, (t) => !t.completed AND t.status != "-" AND t.due).due'
+    hub = f'FROM "{folder}"\nWHERE type = "project" AND !contains(list("done", "dropped"), status)'
+    window = f"date(today) + dur({days} days)"
+    by_priority = 'choice(priority = "high", 0, choice(priority = "low", 2, 1)) ASC'
+    stale = (f'choice(updated AND date(today) - updated <= dur({stale_days} days), "", "⚠️ stale") '
+             'AS Stale')
+
+    def task_view(cond: str) -> list[str]:
+        return ["```dataview", "TASK", f"WHERE {open_task} AND due AND {cond}",
+                f"AND {in_project}", "SORT due ASC", "GROUP BY file.link", "```"]
+
+    def dates_table(cond_next: str, cond_due: str) -> list[str]:
+        return ["Next actions and project deadlines:", "",
+                "```dataview",
+                'TABLE WITHOUT ID file.link AS Project, next_action AS "Next action", '
+                'next_action_due AS "Next action due", due AS Deadline',
+                hub, f"AND ((next_action_due AND {cond_next} AND !contains({task_dates}, next_action_due))"
+                f" OR (due AND {cond_due} AND !contains({task_dates}, due)))",
+                "SORT next_action_due ASC, due ASC", "```"]
+
+    return [
+        "## 🔴 Overdue", "",
+        *task_view("due < date(today)"), "",
+        *dates_table("next_action_due < date(today)", "due < date(today)"), "",
+        f"## 🟡 Due in the next {days} days", "",
+        *task_view(f"due >= date(today) AND due <= {window}"), "",
+        *dates_table(f"next_action_due >= date(today) AND next_action_due <= {window}",
+                     f"due >= date(today) AND due <= {window}"), "",
+        "## Active projects", "",
+        "```dataview",
+        'TABLE WITHOUT ID file.link AS Project, priority AS Priority, next_action AS "Next action", '
+        f'next_action_due AS Due, waiting_on AS "Waiting on", updated AS Updated, {stale}',
+        f'FROM "{folder}"', 'WHERE type = "project" AND status = "active"',
+        f"SORT {by_priority}, next_action_due ASC", "```", "",
+        "## ⏳ Waiting on others", "",
+        "```dataview",
+        'TABLE WITHOUT ID file.link AS Project, status AS Status, waiting_on AS "Waiting on", '
+        'next_action AS "Next action", next_action_due AS Due, updated AS Updated',
+        f'FROM "{folder}"',
+        'WHERE type = "project" AND (status = "waiting" OR (status = "active" AND waiting_on))',
+        "SORT next_action_due ASC", "```", "",
+    ]
+
+
+def render_dashboard(vault: Path, days: int, stale_days: int) -> str:
     now = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
     folder = os.environ.get("PM_FOLDER", "Projects")
+    have_dv = dataview_enabled(vault)
     out = [
         "---", "type: dashboard", f"generated: {now}", "---",
         "# Projects Dashboard", "",
+        f"📖 [[{folder}/{MANUAL_NAME[:-3]}|User manual · คู่มือการใช้งาน]]", "",
         f"> [!info] Generated by `projects.py dashboard` at {now}. Edits here are overwritten —"
-        " change the project notes instead.", "",
+        " change the project notes instead. The Dataview views below are live: they update"
+        " as soon as a project note changes, and ticking a task here ticks it in its note.", "",
     ]
 
-    def item_rows(items):
-        rows = ["| Due | Project | Item |", "|---|---|---|"]
-        for it in items:
-            src = wikilink(it.file, it.project, table=True)
-            text = cell(it.text)
-            if it.kind == "task" and it.file != by_name[it.project].file:
-                text += " (" + wikilink(it.file, Path(it.file).stem, table=True) + ")"
-            elif it.kind == "next_action":
-                text = "**Next:** " + text
-            rows.append(f"| {it.due} · {rel_days(it.due)} | {src} | {text} |")
-        return rows
-
-    out += [f"## 🔴 Overdue ({len(overdue)})", ""]
-    out += item_rows(overdue) if overdue else ["Nothing overdue."]
-    out += ["", f"## 🟡 Due in the next {days} days ({len(soon)})", ""]
-    out += item_rows(soon) if soon else ["Nothing due."]
-
-    def project_table(ps, cols_waiting=False):
-        head = "| Project | Status | Priority | Next action | Due | Updated |"
-        if cols_waiting:
-            head = "| Project | Waiting on | Next action | Due | Updated |"
-        rows = [head, "|" + "---|" * (head.count("|") - 1)]
-        for p in ps:
-            upd = (p.updated or "—") + (" ⚠️ stale" if is_stale(p, stale_days) else "")
-            due = p.next_action_due or p.due or ""
-            if cols_waiting:
-                rows.append(f"| {wikilink(p.file, p.name, table=True)} | {cell(p.waiting_on)} | "
-                            f"{cell(p.next_action)} | {due} | {upd} |")
-            else:
-                rows.append(f"| {wikilink(p.file, p.name, table=True)} | {p.status} | {p.priority} | "
-                            f"{cell(p.next_action)} | {due} | {upd} |")
-        return rows
-
-    active = [p for p in projects if p.status == "active"]
-    waiting = [p for p in projects if p.status == "waiting"]
-    parked = [p for p in projects if p.status in ("on-hold", "idea")]
-    closed = [p for p in projects if p.status in ("done", "dropped")]
-
-    out += ["", f"## Active projects ({len(active)})", ""]
-    out += project_table(active) if active else ["None."]
-    # Waiting-on also surfaces active projects that name someone to chase.
-    chase = waiting + [p for p in active if p.waiting_on]
-    out += ["", f"## ⏳ Waiting on others ({len(chase)})", ""]
-    out += project_table(chase, cols_waiting=True) if chase else ["None."]
-    if parked:
-        out += ["", f"> [!note]- On hold / ideas ({len(parked)})"]
-        out += ["> " + r for r in project_table(parked)]
-    if closed:
-        out += ["", f"> [!success]- Done / dropped ({len(closed)})"]
-        out += ["> " + f"- {wikilink(p.file, p.name)} — {p.status}" for p in closed]
-
-    # Live views: the Tasks plugin (installed) and Dataview (optional).
+    # The instructions sit above the first dataview fence: without the plugin,
+    # that is where the reader sees a raw code block instead of a table.
+    # Collapsed when this vault already has Dataview switched on.
     out += [
-        "", "## Live views", "",
-        "Open dated tasks in project notes (Tasks plugin, always current):", "",
-        "```tasks", "not done", "has due date", f"path includes {folder}",
-        "sort by due", "group by filename", "```", "",
-        "> [!tip]- Dataview table (renders only if the Dataview plugin is installed)",
-        "> ```dataview",
-        "> TABLE status, priority, next_action AS \"Next action\", next_action_due AS \"Due\", updated",
-        "> FROM \"\" WHERE type = \"project\" AND status != \"done\" AND status != \"dropped\"",
-        "> SORT priority ASC, next_action_due ASC",
-        "> ```", "",
+        "> [!warning]" + ("- " if have_dv else " ") + "No tables below, only code blocks? Install Dataview",
+        "> The views need the free **Dataview** community plugin:",
+        "> 1. **Settings → Community plugins**. If asked, choose **Turn on community plugins**.",
+        "> 2. **Browse**, search for **Dataview**, then **Install** and **Enable**.",
+        "> 3. Close and reopen this note.",
+        ">",
+        "> Recommended, so that ticking a task here records its completion date like the Tasks"
+        " plugin does (`✅ YYYY-MM-DD`): **Settings → Dataview → Automatic task completion"
+        " tracking** on, and **Use emoji shorthand for completion** on.", "",
     ]
+    out += dataview_blocks(folder, days, stale_days)
     return "\n".join(out)
 
 
@@ -580,6 +604,60 @@ def gmail_oauth_creds():
     return creds
 
 
+# ---------------------------------------------------------------- manual
+
+def plugin_version() -> str:
+    try:
+        return json.loads((PLUGIN_ROOT / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
+    except (OSError, ValueError, KeyError):
+        return "unknown"
+
+
+def write_manual(vault: Path, days: int, stale_days: int, force: bool = False) -> Path | None:
+    """Write <PM_FOLDER>/User Manual.md from the bundled template when it is
+    missing or was written by another plugin version. Returns the path when
+    written. The plugin's SessionStart hook calls this (via `manual --quiet`),
+    so the manual appears or refreshes in the first session after an install
+    or update; `dashboard` calls it too."""
+    path = projects_dir(vault) / MANUAL_NAME
+    version = plugin_version()
+    if path.is_file() and not force:
+        meta, _ = split_frontmatter(path.read_text(encoding="utf-8"))
+        if str(meta.get("plugin_version")) == version:
+            return None
+    text = MANUAL_TEMPLATE.read_text(encoding="utf-8")
+    for key, value in {"VERSION": version, "DATE": today().isoformat(),
+                       "FOLDER": os.environ.get("PM_FOLDER", "Projects"),
+                       "DAYS": str(days), "STALE_DAYS": str(stale_days)}.items():
+        text = text.replace("{{" + key + "}}", value)
+    write_atomic(path, text)
+    return path
+
+
+def cmd_manual(quiet: bool, force: bool, days: int, stale_days: int) -> None:
+    """--quiet is for the SessionStart hook: when project tracking isn't set up
+    (no vault configured, or no PM_FOLDER in it), do nothing and exit 0; print
+    only when the manual was written. Never creates the folder."""
+    raw = os.environ.get("OBSIDIAN_VAULT", "").strip()
+    vault = Path(raw).expanduser() if raw else None
+    if not (vault and (vault / ".obsidian").is_dir() and projects_dir(vault).is_dir()):
+        if quiet:
+            return
+        vault = vault_path()                  # exits with the reason
+        if not projects_dir(vault).is_dir():
+            sys.exit(f"{projects_dir(vault)} does not exist; set up project tracking first.")
+    try:
+        path = write_manual(vault, days, stale_days, force)
+    except OSError as e:
+        if quiet:
+            return
+        raise SystemExit(f"Could not write the manual: {e}")
+    if path:
+        print(f"nk-work-kit: wrote {path.relative_to(vault).as_posix()} (v{plugin_version()}).")
+    elif not quiet:
+        print(f"{MANUAL_NAME} is already current (v{plugin_version()}).")
+
+
 # ---------------------------------------------------------------- new
 
 TEMPLATE = """---
@@ -633,6 +711,9 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("list"); s.add_argument("--json", action="store_true")
     sub.add_parser("dashboard")
+    s = sub.add_parser("manual", help="write the user manual note into the vault")
+    s.add_argument("--quiet", action="store_true", help="for the SessionStart hook")
+    s.add_argument("--force", action="store_true", help="rewrite even when current")
     sub.add_parser("auth-gmail")
     s = sub.add_parser("digest")
     s.add_argument("--days", type=int); s.add_argument("--format", choices=["text", "html", "json"], default="text")
@@ -647,9 +728,11 @@ def main() -> None:
 
     if a.cmd == "auth-gmail":
         return cmd_auth_gmail()
-    vault = vault_path()
     days = getattr(a, "days", None) or int(os.environ.get("PM_NOTIFY_DAYS", "14"))
     stale_days = int(os.environ.get("PM_STALE_DAYS", "14"))
+    if a.cmd == "manual":
+        return cmd_manual(a.quiet, a.force, days, stale_days)
+    vault = vault_path()
 
     if a.cmd == "new":
         return cmd_new(vault, a)
@@ -666,7 +749,9 @@ def main() -> None:
                       f"{' (' + p.next_action_due + ')' if p.next_action_due else ''}")
     elif a.cmd == "dashboard":
         path = projects_dir(vault) / DASHBOARD_NAME
-        write_atomic(path, render_dashboard(vault, projects, days, stale_days))
+        write_atomic(path, render_dashboard(vault, days, stale_days))
+        if (manual := write_manual(vault, days, stale_days)):
+            print(f"wrote {manual.relative_to(vault).as_posix()}")
         o, s_ = buckets(projects, days)
         print(f"{path.relative_to(vault).as_posix()}: {len(projects)} projects, "
               f"{len(o)} overdue, {len(s_)} due in {days}d")

@@ -256,10 +256,18 @@ existing meeting notes instead of replacing them; a task in any other note
 counts for a project when its line links the hub.
 
 While you work, Claude updates the hub notes (ticks tasks, logs meetings,
-moves the next action) and regenerates `Projects/Dashboard.md`: overdue and
-upcoming items, active projects with a stale flag, waiting-on-others, and live
-Tasks/Dataview views. No Obsidian plugin is required; Tasks and Dataview
-blocks light up if you have them.
+moves the next action) and regenerates `Projects/Dashboard.md`. The dashboard
+leads with **Dataview** views: overdue, due in the next 14 days, active
+projects with a stale flag, and waiting-on-others. They are live: they update
+the moment a note changes, and ticking a task in the dashboard ticks it in its
+note. The views need the Dataview plugin, and the dashboard explains how to
+install it.
+
+The dashboard links to a bilingual (English/Thai) **user manual**,
+`Projects/User Manual.md`. A `SessionStart` hook writes it in the first Claude
+Code session after the plugin is installed or updated. The hook does nothing
+until project tracking is set up, and `projects.py manual --force` rewrites the
+manual by hand.
 
 Setup: run `/project-manager setup`, or ask "set up project tracking". Claude
 finds your vault, surveys it without changing anything, suggests 5–8 active
@@ -277,6 +285,7 @@ Direct use:
 ```bash
 uv run scripts/projects.py list [--json]
 uv run scripts/projects.py dashboard
+uv run scripts/projects.py manual [--force]      # bilingual user manual note
 uv run scripts/projects.py digest --days 14
 uv run scripts/projects.py new "Project name" --area X --due 2026-12-15
 uv run scripts/projects.py notify --dry-run
