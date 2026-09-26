@@ -289,7 +289,15 @@ uv run scripts/projects.py manual [--force]      # bilingual user manual note
 uv run scripts/projects.py digest --days 14
 uv run scripts/projects.py new "Project name" --area X --due 2026-12-15
 uv run scripts/projects.py notify --dry-run
+uv run scripts/projects.py scan-inbox --dry-run  # needs auth-gmail --scan
 ```
+
+**Inbox scan (optional).** `scan-inbox` reads new Primary-tab Gmail and
+upcoming Calendar events, asks `claude -p` (no tools, JSON output only) which
+of them are tasks for a tracked project, validates the answer, and appends each
+task, linked to its email or event, to the hub's `## Suggested from inbox`
+section. Run `projects.py auth-gmail --scan` once to grant read-only Gmail and
+Calendar access. Email content is sent to Anthropic through Claude Code.
 
 **Email digest (optional).** `notify` emails `PM_NOTIFY_TO` only when something
 is overdue or due within `PM_NOTIFY_DAYS`; each item links to its note with an

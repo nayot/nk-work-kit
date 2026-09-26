@@ -1,9 +1,9 @@
 ---
 name: project-manager
-description: Activate this skill when the user wants to see or update the status of their ongoing projects, tracked as notes in their Obsidian vault — "project status", "สถานะโครงการ", "สถานะโปรเจกต์", "update the X project", "อัปเดตโครงการ", "what's due this week", "มีอะไรใกล้ถึงกำหนด", "มีอะไรเลยกำหนด", "what's overdue", "add a new project", "เพิ่มโครงการ", "update the dashboard", "project digest", "set up project tracking", "ตั้งค่าติดตามโครงการ". Also activate after a meeting summary, transcript, memo, document number or eDoc item clearly belongs to a tracked project — offer to log it there. Can set up a scheduled email digest of upcoming and overdue items.
-argument-hint: "[setup | status | due | update <project> | new <name> | dashboard | setup-notify]"
+description: Activate this skill when the user wants to see or update the status of their ongoing projects, tracked as notes in their Obsidian vault — "project status", "สถานะโครงการ", "สถานะโปรเจกต์", "update the X project", "อัปเดตโครงการ", "what's due this week", "มีอะไรใกล้ถึงกำหนด", "มีอะไรเลยกำหนด", "what's overdue", "add a new project", "เพิ่มโครงการ", "update the dashboard", "project digest", "set up project tracking", "ตั้งค่าติดตามโครงการ", "set up the inbox scan", "scan my email for tasks", "ตั้งค่าสแกนอีเมลหางาน". Also activate after a meeting summary, transcript, memo, document number or eDoc item clearly belongs to a tracked project — offer to log it there. Can set up a scheduled email digest of upcoming and overdue items, and a scheduled scan of Gmail and Calendar that adds new tasks to the matching project.
+argument-hint: "[setup | status | due | update <project> | new <name> | dashboard | setup-notify | setup-scan]"
 allowed-tools: [Bash, Read, Edit, Write]
-version: 1.4.0
+version: 1.5.0
 ---
 
 # Project manager — Obsidian as database and dashboard
@@ -134,8 +134,34 @@ any other note counts for a project when its line links the hub
 | `manual [--force]` | Write `Projects/User Manual.md`, the bilingual (English/Thai) user manual, linked both ways with the dashboard. |
 | `digest [--days N] [--format text\|html\|json]` | Overdue and upcoming items. The default window is `PM_NOTIFY_DAYS` (14). |
 | `notify [--dry-run] [--force]` | Email the digest to `PM_NOTIFY_TO`. It stays silent when nothing is due. |
-| `auth-gmail` | One-time browser sign-in for `PM_MAIL_METHOD=gmail-oauth`. |
+| `auth-gmail [--scan]` | One-time browser sign-in for `PM_MAIL_METHOD=gmail-oauth`. `--scan` adds read-only Gmail and Calendar, for `scan-inbox`. |
+| `scan-inbox [--dry-run]` | Find new tasks in Primary-tab Gmail and upcoming Calendar events with `claude -p`, and append them to the matching hub's `## Suggested from inbox` section. |
 | `new "Name" --area A --due D --priority P` | Create a hub note from the template, then fill it in. |
+
+## Inbox scan (optional)
+
+`scan-inbox` reads Primary-tab Gmail since its last run and primary-calendar
+events in the next `PM_SCAN_DAYS` (14), and makes one `claude -p` call with no
+tools, MCP servers or settings, whose only output is a JSON list of tasks. The
+script validates every task (a project that exists and isn't done or dropped,
+a source from this run, a date within a year, bounded text, confidence at
+least `PM_SCAN_MIN_CONFIDENCE`) and appends the ones that pass to the hub's
+`## Suggested from inbox` section:
+
+```
+- [ ] Send Audra the final site-visit schedule ([✉ Site visit logistics](https://mail.google.com/…)) ➕ 2026-09-26 📅 2026-09-30
+```
+
+It never touches frontmatter, so `updated:` still means "last reviewed". What
+it skipped, and why, is printed (`journalctl --user -u nk-projects-scan`).
+Processed ids live in `~/.local/share/nk-work-kit/inbox-scan.json`; delete the
+file to rescan the last two days. Email content goes to Anthropic through
+`claude -p`, so mention that when setting it up.
+
+When reviewing a project with the user, go through its `## Suggested from
+inbox` tasks: keep the good ones (move them under Milestones / Tasks if the
+user prefers), delete the wrong ones, and bump `updated:` only after the user
+has reviewed them.
 
 ## Working with the user
 
@@ -363,6 +389,34 @@ message arrived.
      works, **disable the desktop's email timer**
      (`systemctl --user disable --now nk-projects-notify.timer`) so only one
      machine sends.
+- **Inbox scan timer (optional).** Runs `scan-inbox` and then `dashboard` at
+  04:40 and 12:40, so the 05:00 digest already includes that morning's new
+  tasks. It needs `claude` signed in on the same machine. Set it up only after
+  `auth-gmail --scan` and a `scan-inbox --dry-run` the user has looked at.
+
+  `~/.config/systemd/user/nk-projects-scan.service`:
+
+  ```ini
+  [Unit]
+  Description=nk-work-kit inbox scan
+  [Service]
+  Type=oneshot
+  TimeoutStartSec=15min
+  ExecStart=<uv> run <plugin-root>/scripts/projects.py scan-inbox
+  ExecStart=<uv> run <plugin-root>/scripts/projects.py dashboard
+  ```
+
+  `~/.config/systemd/user/nk-projects-scan.timer`:
+
+  ```ini
+  [Unit]
+  Description=Scan Gmail + Calendar for project tasks
+  [Timer]
+  OnCalendar=*-*-* 04,12:40:00 Asia/Bangkok
+  Persistent=true
+  [Install]
+  WantedBy=timers.target
+  ```
 - **No always-on machine:** a Claude cloud routine (`/schedule`) can read a
   cloud copy of the vault (for example Google Drive) and create a Gmail
   **draft** digest. Or skip scheduling entirely and ask "what's due?" in a

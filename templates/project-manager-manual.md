@@ -85,6 +85,10 @@ Claude only puts real dates in `📅` or `*_due` fields, taken from you, an emai
 
 On weekday mornings, an email lists what is overdue or due within {{DAYS}} days. Nothing is sent on a quiet day, and each item links back to its note in Obsidian. To turn it on, ask Claude to "set up the project digest".
 
+### Tasks from email and calendar (optional)
+
+Twice a day, a scan reads new mail in your Gmail Primary tab and your upcoming calendar events. When one clearly asks you to do something for a tracked project, the task is added to that hub note under **Suggested from inbox**, with a link back to the email or event and the date it was added (`➕`). Delete any line that is wrong; nothing else in the note is changed. To turn it on, ask Claude to "set up the inbox scan".
+
 ### Settings
 
 These go in `~/.config/nk-work-kit/.env`:
@@ -97,6 +101,8 @@ These go in `~/.config/nk-work-kit/.env`:
 | `PM_STALE_DAYS` | `14` | Days without an update before a project is flagged stale |
 | `PM_NOTIFY_TO` | — | Email address for the digest |
 | `PM_MAIL_METHOD` | `gmail-oauth` | How the digest is sent |
+| `PM_SCAN_MIN_CONFIDENCE` | `high` | Inbox scan: add only tasks at least this certain (`high`, `medium`, `low`) |
+| `PM_SCAN_DAYS` | `14` | Inbox scan: how far ahead to read the calendar |
 
 After changing `PM_FOLDER`, `PM_NOTIFY_DAYS` or `PM_STALE_DAYS`, ask Claude to "update the dashboard".
 
@@ -180,6 +186,10 @@ Claude จะใส่วันที่ใน `📅` หรือช่อง `
 
 ทุกเช้าวันทำการ ระบบจะส่งอีเมลสรุปงานที่เลยกำหนดหรือครบกำหนดภายใน {{DAYS}} วัน วันที่ไม่มีงานค้างจะไม่ส่ง แต่ละรายการในอีเมลมีลิงก์กลับไปยังโน้ตใน Obsidian หากต้องการเปิดใช้ ให้บอก Claude ว่า "ตั้งค่าอีเมลสรุปโครงการ"
 
+### งานจากอีเมลและปฏิทิน (ไม่บังคับ)
+
+วันละสองครั้ง ระบบจะอ่านอีเมลใหม่ในแท็บ Primary ของ Gmail และนัดหมายที่กำลังจะมาถึงในปฏิทิน หากรายการใดขอให้คุณทำงานของโครงการที่ติดตามอยู่อย่างชัดเจน งานนั้นจะถูกเพิ่มในโน้ตหลักของโครงการ ใต้หัวข้อ **Suggested from inbox** พร้อมลิงก์กลับไปยังอีเมลหรือนัดหมาย และวันที่เพิ่ม (`➕`) รายการที่ไม่ถูกต้องให้ลบบรรทัดนั้นได้เลย ระบบจะไม่แก้ส่วนอื่นของโน้ต หากต้องการเปิดใช้ ให้บอก Claude ว่า "ตั้งค่าสแกนอีเมลหางาน"
+
 ### การตั้งค่า
 
 ตั้งค่าไว้ในไฟล์ `~/.config/nk-work-kit/.env`
@@ -192,6 +202,8 @@ Claude จะใส่วันที่ใน `📅` หรือช่อง `
 | `PM_STALE_DAYS` | `14` | จำนวนวันที่ไม่ได้อัปเดต ก่อนขึ้นเตือน stale |
 | `PM_NOTIFY_TO` | — | อีเมลผู้รับอีเมลสรุป |
 | `PM_MAIL_METHOD` | `gmail-oauth` | วิธีส่งอีเมล |
+| `PM_SCAN_MIN_CONFIDENCE` | `high` | สแกนอีเมล: เพิ่มเฉพาะงานที่มั่นใจอย่างน้อยระดับนี้ (`high`, `medium`, `low`) |
+| `PM_SCAN_DAYS` | `14` | สแกนอีเมล: อ่านปฏิทินล่วงหน้ากี่วัน |
 
 หลังแก้ `PM_FOLDER`, `PM_NOTIFY_DAYS` หรือ `PM_STALE_DAYS` ให้บอก Claude ว่า "อัปเดตแดชบอร์ด"
 
