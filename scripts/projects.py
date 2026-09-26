@@ -17,6 +17,7 @@ projects.py — project tracking on top of an Obsidian vault.
     uv run projects.py digest [--days 14] [--format text|html|json]
     uv run projects.py notify [--dry-run] [--force]
     uv run projects.py auth-gmail [--scan]      one-time browser sign-in (gmail-oauth)
+    uv run projects.py auth-gmail --url URL     second step of a headless sign-in
     uv run projects.py scan-inbox [--dry-run]   new tasks from Gmail + Calendar → hub notes
     uv run projects.py new "Name" [--area A] [--due YYYY-MM-DD] [--priority P]
 
@@ -50,7 +51,7 @@ rclone/Obsidian Sync while it may be running.
 
 SCAN-INBOX
 ----------
-`scan-inbox` reads Primary-tab Gmail since the last run and Calendar events in
+`scan-inbox` reads Gmail since the last run (PM_SCAN_GMAIL_QUERY) and Calendar events in
 the next PM_SCAN_DAYS, and asks `claude -p` which of them are tasks for a
 tracked project. Claude runs as a pure function: no tools, no MCP servers, no
 settings, structured output only. Everything it returns is validated here
@@ -598,23 +599,79 @@ def gmail_oauth_paths() -> tuple[Path, Path]:
     return (own if own.is_file() else BUNDLED_CLIENT), config_dir() / "gmail-token.json"
 
 
-def cmd_auth_gmail(scan: bool = False) -> None:
-    """--scan also asks for read-only Gmail and Calendar, for scan-inbox. The
-    digest alone needs only gmail.send, so that stays the default."""
-    from google_auth_oauthlib.flow import InstalledAppFlow
-    client, token = gmail_oauth_paths()
-    if not client.is_file():
-        sys.exit(f"OAuth client file not found: {client} (Desktop app JSON from Google Cloud).")
-    print(f"OAuth client: {client}")
-    token.parent.mkdir(parents=True, exist_ok=True)
-    scopes = GMAIL_SEND + (SCAN_SCOPES if scan else [])
-    flow = InstalledAppFlow.from_client_secrets_file(str(client), scopes)
-    creds = flow.run_local_server(port=0, open_browser=True,
-                                  authorization_prompt_message="Sign in in your browser: {url}")
+def save_token(token: Path, creds, scan: bool) -> None:
     fd = os.open(token, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as f:
         f.write(creds.to_json())
     print(f"Saved {token} (scope: {'gmail.send + gmail.readonly + calendar.readonly' if scan else 'gmail.send only'}).")
+
+
+def cmd_auth_gmail(scan: bool = False, url: str | None = None, no_browser: bool = False) -> None:
+    """--scan also asks for read-only Gmail and Calendar, for scan-inbox. The
+    digest alone needs only gmail.send, so that stays the default.
+
+    Without a local browser (a headless server, or --no-browser) it runs in two
+    steps: print the sign-in URL and save the flow's state and PKCE verifier to
+    the config dir; the user signs in on any device, the browser then fails to
+    load http://localhost:1/?code=..., and `auth-gmail --url '<that address>'`
+    exchanges the code. No port forwarding needed."""
+    import webbrowser
+    from google_auth_oauthlib.flow import Flow, InstalledAppFlow
+    client, token = gmail_oauth_paths()
+    pending = config_dir() / ".auth-gmail-pending.json"
+    token.parent.mkdir(parents=True, exist_ok=True)
+    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"    # the redirect is http://localhost
+    os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"     # Google may add earlier grants
+    if url:
+        try:
+            st = json.loads(pending.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            sys.exit("No sign-in in progress. Run `projects.py auth-gmail [--scan]` first.")
+        flow = Flow.from_client_secrets_file(st["client"], st["scopes"], state=st["state"],
+                                             redirect_uri=st["redirect_uri"])
+        flow.code_verifier = st["code_verifier"]
+        try:
+            flow.fetch_token(authorization_response=url.strip())
+        except Exception as e:
+            sys.exit(f"Could not exchange the code: {e}\nStart again with `projects.py auth-gmail"
+                     f"{' --scan' if st['scan'] else ''}`.")
+        pending.unlink(missing_ok=True)
+        return save_token(token, flow.credentials, st["scan"])
+
+    if not client.is_file():
+        sys.exit(f"OAuth client file not found: {client} (Desktop app JSON from Google Cloud).")
+    print(f"OAuth client: {client}")
+    scopes = GMAIL_SEND + (SCAN_SCOPES if scan else [])
+    if not no_browser:
+        try:
+            webbrowser.get()
+        except webbrowser.Error:
+            no_browser = True
+    if not no_browser:
+        flow = InstalledAppFlow.from_client_secrets_file(str(client), scopes)
+        creds = flow.run_local_server(port=0, open_browser=True,
+                                      authorization_prompt_message="Sign in in your browser: {url}")
+        return save_token(token, creds, scan)
+
+    redirect = "http://localhost:1/"
+    flow = Flow.from_client_secrets_file(str(client), scopes, redirect_uri=redirect,
+                                         autogenerate_code_verifier=True)
+    auth_url, state = flow.authorization_url(access_type="offline", prompt="consent")
+    fd = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        json.dump({"client": str(client), "scopes": scopes, "state": state, "scan": scan,
+                   "redirect_uri": redirect, "code_verifier": flow.code_verifier}, f)
+    print(f"""
+No browser here. Sign in on any device:
+
+  1. Open this link and sign in with your BUU Google account:
+
+     {auth_url}
+
+  2. The browser then ends on a page that fails to load, at an address
+     starting with http://localhost:1/?state=... Copy that whole address.
+  3. Run:  projects.py auth-gmail --url '<the address>'
+""")
 
 
 def gmail_oauth_creds(need: list[str] = GMAIL_SEND):
@@ -639,6 +696,7 @@ def gmail_oauth_creds(need: list[str] = GMAIL_SEND):
 # ---------------------------------------------------------------- scan-inbox
 
 SCAN_HEADING = "## Suggested from inbox"
+SCAN_QUERY = "-from:me -in:chats -category:promotions -category:social -category:updates"
 SCAN_STATE = Path.home() / ".local" / "share" / "nk-work-kit" / "inbox-scan.json"
 CONFIDENCE = ["low", "medium", "high"]
 SCAN_SCHEMA = {
@@ -695,12 +753,15 @@ def mail_body(payload: dict) -> str:
 
 
 def fetch_mail(session, state: dict, limit: int) -> tuple[list[dict], str]:
-    """New Primary-tab mail since the last run (2 days on the first). Returns
-    (messages, account address)."""
+    """New mail since the last run (2 days on the first), archived or not,
+    matching PM_SCAN_GMAIL_QUERY. Returns (messages, account address).
+    Not `category:primary`: Gmail matches that only for mail still in the
+    inbox, so archived mail (most of it, with filters) would be missed."""
     api = "https://gmail.googleapis.com/gmail/v1/users/me"
     me = session.get(f"{api}/profile", timeout=30).json().get("emailAddress", "")
     since = state.get("last_run")
-    q = "category:primary -from:me -in:chats " + (
+    q = os.environ.get("PM_SCAN_GMAIL_QUERY") or SCAN_QUERY
+    q += " " + (
         f"after:{int(since) - 3600}" if since else "newer_than:2d")
     r = session.get(f"{api}/messages", params={"q": q, "maxResults": limit}, timeout=30)
     r.raise_for_status()
@@ -975,6 +1036,8 @@ def main() -> None:
     s.add_argument("--force", action="store_true", help="rewrite even when current")
     s = sub.add_parser("auth-gmail")
     s.add_argument("--scan", action="store_true", help="also read-only Gmail + Calendar, for scan-inbox")
+    s.add_argument("--no-browser", action="store_true", help="two-step sign-in (automatic on a headless machine)")
+    s.add_argument("--url", help="second step: the http://localhost:1/?... address the browser ended on")
     s = sub.add_parser("scan-inbox", help="new tasks from Gmail + Calendar into hub notes")
     s.add_argument("--dry-run", action="store_true", help="print what would be added; write nothing")
     s = sub.add_parser("digest")
@@ -989,7 +1052,7 @@ def main() -> None:
     a = ap.parse_args()
 
     if a.cmd == "auth-gmail":
-        return cmd_auth_gmail(a.scan)
+        return cmd_auth_gmail(a.scan, a.url, a.no_browser)
     days = getattr(a, "days", None) or int(os.environ.get("PM_NOTIFY_DAYS", "14"))
     stale_days = int(os.environ.get("PM_STALE_DAYS", "14"))
     if a.cmd == "manual":

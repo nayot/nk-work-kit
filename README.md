@@ -292,7 +292,7 @@ uv run scripts/projects.py notify --dry-run
 uv run scripts/projects.py scan-inbox --dry-run  # needs auth-gmail --scan
 ```
 
-**Inbox scan (optional).** `scan-inbox` reads new Primary-tab Gmail and
+**Inbox scan (optional).** `scan-inbox` reads new Gmail (not Promotions, Social or Updates) and
 upcoming Calendar events, asks `claude -p` (no tools, JSON output only) which
 of them are tasks for a tracked project, validates the answer, and appends each
 task, linked to its email or event, to the hub's `## Suggested from inbox`

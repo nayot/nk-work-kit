@@ -87,7 +87,7 @@ On weekday mornings, an email lists what is overdue or due within {{DAYS}} days.
 
 ### Tasks from email and calendar (optional)
 
-Twice a day, a scan reads new mail in your Gmail Primary tab and your upcoming calendar events. When one clearly asks you to do something for a tracked project, the task is added to that hub note under **Suggested from inbox**, with a link back to the email or event and the date it was added (`➕`). Delete any line that is wrong; nothing else in the note is changed. To turn it on, ask Claude to "set up the inbox scan".
+Twice a day, a scan reads new mail in Gmail (not Promotions, Social or Updates) and your upcoming calendar events. When one clearly asks you to do something for a tracked project, the task is added to that hub note under **Suggested from inbox**, with a link back to the email or event and the date it was added (`➕`). Delete any line that is wrong; nothing else in the note is changed. To turn it on, ask Claude to "set up the inbox scan".
 
 ### Settings
 
@@ -188,7 +188,7 @@ Claude จะใส่วันที่ใน `📅` หรือช่อง `
 
 ### งานจากอีเมลและปฏิทิน (ไม่บังคับ)
 
-วันละสองครั้ง ระบบจะอ่านอีเมลใหม่ในแท็บ Primary ของ Gmail และนัดหมายที่กำลังจะมาถึงในปฏิทิน หากรายการใดขอให้คุณทำงานของโครงการที่ติดตามอยู่อย่างชัดเจน งานนั้นจะถูกเพิ่มในโน้ตหลักของโครงการ ใต้หัวข้อ **Suggested from inbox** พร้อมลิงก์กลับไปยังอีเมลหรือนัดหมาย และวันที่เพิ่ม (`➕`) รายการที่ไม่ถูกต้องให้ลบบรรทัดนั้นได้เลย ระบบจะไม่แก้ส่วนอื่นของโน้ต หากต้องการเปิดใช้ ให้บอก Claude ว่า "ตั้งค่าสแกนอีเมลหางาน"
+วันละสองครั้ง ระบบจะอ่านอีเมลใหม่ใน Gmail (ยกเว้น Promotions, Social และ Updates) และนัดหมายที่กำลังจะมาถึงในปฏิทิน หากรายการใดขอให้คุณทำงานของโครงการที่ติดตามอยู่อย่างชัดเจน งานนั้นจะถูกเพิ่มในโน้ตหลักของโครงการ ใต้หัวข้อ **Suggested from inbox** พร้อมลิงก์กลับไปยังอีเมลหรือนัดหมาย และวันที่เพิ่ม (`➕`) รายการที่ไม่ถูกต้องให้ลบบรรทัดนั้นได้เลย ระบบจะไม่แก้ส่วนอื่นของโน้ต หากต้องการเปิดใช้ ให้บอก Claude ว่า "ตั้งค่าสแกนอีเมลหางาน"
 
 ### การตั้งค่า
 
