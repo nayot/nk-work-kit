@@ -301,10 +301,16 @@ class Session:
                                 " | //a[contains(text(),'Authorize')]")
             try:
                 await auth.first.wait_for(state="visible", timeout=3000)
-                await auth.first.evaluate("el => el.click()")
-                await page.wait_for_load_state("networkidle")
             except PwTimeout:
                 pass
+            else:
+                await auth.first.evaluate("el => el.click()")
+                # networkidle can resolve before the form post navigates away,
+                # so wait for the redirect back to e-leave itself.
+                try:
+                    await page.wait_for_url(lambda u: u.startswith(BASE), timeout=30000)
+                except PwTimeout:
+                    pass
         if not page.url.startswith(BASE) or "/auth" in page.url:
             raise ConfigError(f"login did not reach e-leave (landed on {page.url}) — "
                               "check EDOC_USERNAME / EDOC_PASSWORD")
