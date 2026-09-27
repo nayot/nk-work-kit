@@ -10,6 +10,7 @@ Engineering, Burapha University.
 | `thai-memo` (e-Signature) | Upload a finished PDF to **BUU e-Signature** and assign a signer |
 | `pending-docs` | Report what is still waiting in **eDoc** (หนังสือค้างรับ) and **e-Signature** (รอลงนาม) — read-only |
 | `edoc-digest` | Fetch unread **eDoc** documents and their PDFs, **ลงรับ** them, and write a summary report with important ones flagged and linked to their PDFs — never signs |
+| `e-leave` | Check leave balance and status in **BUU e-Leave**, and submit (ยื่นใบลา) or cancel leave requests with evidence attached — shows the rendered ใบลา and submits only after you approve it |
 | `transcribe` | Turn a meeting recording into a Markdown transcript — Thai, English or mixed |
 | `project-manager` | Track ongoing projects as notes in an **Obsidian** vault: a generated dashboard with links to the notes, updates while you work, and an optional email digest of upcoming and overdue items |
 
@@ -27,6 +28,8 @@ Ask Claude in your own words, or use the slash commands below.
   [Audio transcription](#audio-transcription).
 - For the `pending-docs` skill only: [`uv`](https://docs.astral.sh/uv/) and
   Chromium for Playwright — see [Pending documents](#pending-documents).
+- For the `e-leave` skill only: [`uv`](https://docs.astral.sh/uv/) and Chromium
+  for Playwright, as for `pending-docs` — see [e-Leave](#e-leave).
 - For the `project-manager` skill only: [`uv`](https://docs.astral.sh/uv/) and an
   Obsidian vault — see [Project manager](#project-manager).
 
@@ -77,6 +80,7 @@ still works if you prefer it).
 | `EDOC_INBOX` | `pending-docs` | Optional. Comma-separated inbox names; **leave empty to check them all** |
 | `EDOC_DIGEST_INBOX` | `edoc-digest` | Required. Comma-separated inbox names to fetch and ลงรับ — no "all" default |
 | `ESIGN_USERNAME` / `ESIGN_PASSWORD` | `pending-docs` | Optional — defaults to the `EDOC_` pair |
+| `ELEAVE_USERNAME` / `ELEAVE_PASSWORD` | `e-leave` | Optional — defaults to the `EDOC_` pair |
 
 Lookup order is: real environment variables, then
 `$XDG_CONFIG_HOME/nk-work-kit/.env`, then `%APPDATA%\nk-work-kit\.env` on
@@ -95,6 +99,7 @@ profile at `~/.local/share/buu-docnum/profile`, already outside the plugin.
 |---|---|---|---|
 | `pending-docs` | tested | should work | should work |
 | `edoc-digest` | should work | tested | should work |
+| `e-leave` | tested (cancel not yet) | should work | should work |
 | `transcribe` | tested | should work | should work |
 | `doc-number` | tested | should work | needs a graphical session |
 | `draft-memo` / `thai-memo` | tested | check the LibreOffice path | check the LibreOffice path |
@@ -244,6 +249,35 @@ uv run scripts/edoc_digest.py --all --receive        # also rows already read bu
 
 Opening a document marks it read in eDoc, so a second run finds nothing
 unread; `--all` picks up anything still in ค้างรับ.
+
+## e-Leave
+
+The `e-leave` skill wraps `scripts/eleave.py`, which signs in to
+**https://e-leave.buu.ac.th** through BUU SSO with the eDoc account.
+
+```bash
+uv run scripts/eleave.py balance                   # วันลาคงเหลือ, leave taken
+uv run scripts/eleave.py status [--year 2569]      # สถานะการลา + approvers
+uv run scripts/eleave.py types                     # leave types, which are automated
+uv run scripts/eleave.py fields ไปราชการ            # form fields of one type
+uv run scripts/eleave.py request spec.json         # fill + review page only
+uv run scripts/eleave.py request spec.json --confirm <preview_id>   # submit
+uv run scripts/eleave.py cancel --start 2026-11-18 [--confirm]
+```
+
+`request` takes a JSON spec (type, dates, half days, reason, evidence files;
+see the script's docstring or `skills/e-leave/SKILL.md`). Without `--confirm`
+it fills the form, stops at e-Leave's own review page and prints the rendered
+ใบลา with a `preview_id`; `--confirm <preview_id>` submits, and refuses if the
+ใบลา differs from the previewed one. Submitting and cancelling e-mail the
+approvers, so Claude always shows the preview and waits for your yes.
+Evidence must be .pdf/.jpg/.jpeg/.png under 5 MB. ลากิจ, ลาป่วย, ลาพักผ่อน,
+ไปราชการ and the two ไปต่างประเทศ types are automated; the rare long forms
+(อุปสมบท, ช่วยเหลือภริยาคลอดบุตร, ติดตามคู่สมรส, ฟื้นฟูสมรรถภาพ) are left to
+the website. Review-page screenshots go to `~/.local/share/nk-work-kit/eleave/`.
+
+Submitting has been verified with a real request; the cancel step follows the
+official manual and has not yet been exercised.
 
 ## Project manager
 
