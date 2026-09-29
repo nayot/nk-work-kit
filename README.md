@@ -372,6 +372,12 @@ Claude asks for it on the first run and saves it to the `.env`. Set it to
 `none` to keep both local. The script itself never uploads anything, so
 running it directly leaves both files in place.
 
+For a meeting, Claude then **fills in the meeting note** in your Obsidian vault
+(`OBSIDIAN_VAULT`). If you prepared a note beforehand (agenda, invited
+attendees), it fills that note in place and keeps what you wrote. Otherwise it
+creates one from your vault's meeting template, dated for the meeting, with a
+link back to the recording and transcript.
+
 Direct use:
 
 ```bash

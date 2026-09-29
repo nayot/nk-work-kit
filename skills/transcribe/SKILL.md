@@ -3,7 +3,7 @@ name: transcribe
 description: Transcribe an audio recording (meeting, interview, lecture) into a Markdown transcript with timestamps and speaker labels, in Thai, English, or mixed. Use `/transcribe <audio-path>` or activate automatically when the user asks to "transcribe", "ถอดเสียง", "ถอดความ", "ทำ transcript", "get a transcript / minutes / notes from this recording", or points at an audio file (.m4a, .mp3, .wav, .aac, .ogg, .flac) and wants text out of it.
 argument-hint: <audio-path> [model-id]
 allowed-tools: [Bash, Read, Edit, Write]
-version: 1.2.0
+version: 1.2.1
 ---
 
 # transcribe — Audio → Markdown Transcript
@@ -51,6 +51,8 @@ Parse as: `<audio-path> [model-id]`
 - `rclone` with a configured Google Drive remote, for filing the recording
   and its transcript afterwards (see below). Without it the transcription
   still runs; only the move is skipped.
+- `OBSIDIAN_VAULT` in the same `.env` (shared with `project-manager`), for
+  filling in the meeting note afterwards. Without it the note is skipped.
 
 ## First run: setup
 
@@ -148,12 +150,55 @@ of boundaries, and mention the caveat in your reply.
    the participant list, if identified) in chat — don't dump the entire
    verbatim transcript into the conversation unless they ask for it.
 2. Give the output file path.
-3. **Move the audio and the transcript to Drive.** Do this only when the
+3. **Fill in the meeting note in Obsidian.** Do this when the recording is a
+   meeting (skip lectures, interviews and voice memos unless the user asks),
+   the transcript looks sane, and `OBSIDIAN_VAULT` is set. It is the same
+   variable the `project-manager` skill uses, resolved the same way as
+   `TRANSCRIBE_RCLONE_DEST` above. If it is unset, say the note was skipped
+   and why, and don't go looking for a vault.
+
+   - **Find the note first.** The user often prepares one before the meeting
+     with the agenda and the invited attendees. Look in the vault's meetings
+     folder, which is the folder where notes named with a date and a topic
+     already live (e.g. `Meetings/`). Match on the meeting date (from the
+     recording's filename, or its date if the filename has none) and on topic
+     words. Check nearby dates too, in case the note was filed a day off. If
+     several notes match, ask which one.
+   - **Existing note: fill it in place.** Keep the user's header, background,
+     agenda and headings. Replace the `...` and blank placeholders under each
+     heading with what was said, following the note's own sections. Add who
+     was actually heard to the attendee list, next to the invited names;
+     don't strike anyone out. Keep the existing action items, and add new ones
+     with owners and dates only where these were said. Never delete or
+     reword the user's text.
+   - **No note: create one** from the vault's meeting template. The template
+     folder is `folder` in `.obsidian/templates.json` (or the Templater
+     plugin's folder); use the file named like `Meeting Template`. Name the
+     note the way the folder's existing notes are named, and use the meeting
+     date, not today's. Resolve template tags such as
+     `<% tp.date.now(...) %>` or `{{date}}` to the meeting date yourself,
+     because nothing will render them later. If there is no template, use
+     Date / Key Attendees / Agenda / Notes / Action Items.
+   - **Content:**
+     - Write in the language the user's notes already use.
+     - Use names from the invitation, the calendar or email over the
+       transcript's spelling, since the model often mishears names. Where a
+       name or figure is unclear, say so rather than guess.
+     - Add one source line near the top giving the recording's length, the
+       model used, and where the audio and transcript are. That is the Drive
+       path from step 4, or the local path if they stay local; correct the
+       line if the move then fails.
+     - Don't paste the verbatim transcript into the note.
+   - Skip `.trash/`, `Confidential/` and encrypted (Meld Encrypt) notes.
+     Tell the user the note's path and what you filled in. If the meeting
+     belongs to a project tracked by `project-manager`, offer to log it
+     there too.
+4. **Move the audio and the transcript to Drive.** Do this only when the
    destination is set (see setup) **and** the transcript is non-empty and
    looks sane. `rclone move` deletes the local files, and the retries below
    (video container, empty output, re-run with `gemini-2.5-pro`) all need the
-   audio. So an empty or garbled transcript means no move. Do steps 1–2
-   (reading and summarising the `.md`) before this, because the local copy
+   audio. So an empty or garbled transcript means no move. Do steps 1–3
+   (reading, summarising and the meeting note) before this, because the local copy
    is gone afterwards. The transcript is the `Wrote <output-path>` file, which
    is not next to the audio when `-o` was used.
 
@@ -189,10 +234,10 @@ of boundaries, and mention the caveat in your reply.
    `rclone copy "<dest>/<filename>" <local-dir>/`. When you extracted audio
    from a video (next step), move the file you transcribed and leave the
    original video alone.
-4. If `transcribe.py` reports `No audio stream found`, the file is probably
+5. If `transcribe.py` reports `No audio stream found`, the file is probably
    a video container — extract audio first:
    `ffmpeg -i input.mp4 -vn -c:a copy output.m4a`, then retry.
-5. If the response comes back empty, the chosen model doesn't actually
+6. If the response comes back empty, the chosen model doesn't actually
    accept `input_audio` — retry with a `google/gemini-2.5-*` or
    `openai/gpt-4o*-audio-preview` model.
 
@@ -203,6 +248,8 @@ of boundaries, and mention the caveat in your reply.
 - Don't move anything before the transcript has been checked and its
   summary shown, and don't move one file of the pair without the other
   unless the user chose that.
+- Don't create a second meeting note when the user already prepared one,
+  and don't overwrite or reword what they wrote in it.
 - Don't guess at Thai speech content if the model output looks wrong —
   re-run with a stronger model (`gemini-2.5-pro`) rather than editing the
   transcript by hand.
