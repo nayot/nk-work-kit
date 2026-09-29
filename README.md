@@ -34,7 +34,7 @@ Ask Claude in your own words, or use the slash commands below.
 - For the `project-manager` skill only: [`uv`](https://docs.astral.sh/uv/) and an
   Obsidian vault — see [Project manager](#project-manager).
 - For the `business-card` skill only: the Gmail connector, and optionally a
-  `gcontacts` CLI on `PATH` to update existing contacts — see
+  `gcontacts` CLI on `PATH` to create and update contacts — see
   [Business cards](#business-cards).
 
 ## Install
@@ -402,8 +402,9 @@ are, phones normalised to `+66`, unsure characters flagged with "(?)" — and
 shows the fields as a table. It then:
 
 1. **Saves the contact.** It searches your Google Contacts first. An existing
-   contact is updated with `gcontacts update` (a small People API CLI, not part
-   of this plugin), since the Contacts connector is search-only. A new contact
+   contact is updated with `gcontacts update` and a new one is added with
+   `gcontacts create` (a small People API CLI, not part of this plugin), since
+   the Contacts connector is search-only. Without `gcontacts`, a new contact
    becomes a `.vcf` file, built by `scripts/make_vcf.py`, in `~/Downloads/`,
    for you to import at contacts.google.com or open on your phone.
 2. **Drafts a greeting email** in Gmail — English, or Thai for Thai

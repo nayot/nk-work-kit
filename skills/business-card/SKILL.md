@@ -1,7 +1,7 @@
 ---
 name: business-card
 description: Process a photo of a business card for Nayot — extract the contact details, save them to his Google Contacts, and draft a greeting email that shares his vCard link. Use this skill whenever the user uploads, pastes or points at a photo that looks like a business card or name card (นามบัตร), even if they only say "here's a card", "new contact", "met this person today", "บันทึกนามบัตร", or send the image with no text at all. Also use it for photos of several cards at once, or the front and back of one card.
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Business card → contact + greeting email
@@ -61,7 +61,7 @@ The contact's note is `Card scanned <today's date>` plus any context Nayot gave
 
 The Contacts MCP (`mcp__claude_ai_Google_Contacts__*`, load with ToolSearch) is
 **search-only**. Edits go through the `gcontacts` CLI (`~/.local/bin/gcontacts`,
-People API via gcloud ADC), which can **search and update but not create**.
+People API via gcloud ADC): `search`, `create` and `update`.
 
 1. **Check for an existing contact first.** Run `gcontacts search <email>`, then
    `gcontacts search "<name>"` (English, then Thai). `search_contacts` from the
@@ -77,18 +77,25 @@ People API via gcloud ADC), which can **search and update but not create**.
    **replace** the stored value, so only pass them when the card changes them,
    and build `--note` from the existing note plus the new line so nothing is lost.
    Address, website and LINE ID can't be set this way; list them in the note.
-3. **New contact → vCard file.** Write `contact.json` to the scratchpad (or a temp
-   dir), build the `.vcf` in `~/Downloads/` as `<First>_<Last>.vcf`, and give him
-   the path. Tell him in one line: import it at contacts.google.com → Import, or
-   open it on his phone where Google is the default contacts account.
+3. **New contact → create it.** Write `contact.json` to the scratchpad and run
+   ```bash
+   gcontacts create contact.json
+   ```
+   It stores every field (Thai name as a nickname, address, websites) and prints
+   the new `resourceName`. It exits 1 and prints the match when one of the emails
+   is already on a contact (it checks the full list, not search, so a contact
+   created a minute ago still counts); update that one instead. `--force` makes
+   a separate contact anyway — only when he says it is a different person.
 
-   `contact.json` fields: `given_name`, `family_name`, `prefix`, `alt_name` (Thai
+   `contact.json` fields (also used by `make_vcf.py`): `given_name`, `family_name`, `prefix`, `alt_name` (Thai
    name), `org`, `department`, `title`, `phones` [{`number`, `type`}], `emails`
    [{`address`, `type`}], `urls`, `address`
    {`street`,`city`,`region`,`postcode`,`country`}, `note`.
 
 If `gcontacts` is missing or fails on auth (expired gcloud ADC), say so with the
-error and fall back to the `.vcf`. Re-authenticating gcloud is an interactive
+error and fall back to a vCard: build it in `~/Downloads/<First>_<Last>.vcf` with
+`make_vcf.py` and tell him in one line to import it at contacts.google.com →
+Import, or open it on his phone. Re-authenticating gcloud is an interactive
 login he runs himself.
 
 ## Step 3 — Draft the greeting email
@@ -127,7 +134,7 @@ Thai emails (Gmail `search_threads`, `from:me` with Thai text) or ask him.
 
 ## Finish
 
-Reply briefly: the extracted table, the contact status (updated / `.vcf` to
+Reply briefly: the extracted table, the contact status (updated / created / `.vcf` to
 import), and the Gmail draft link (or the email text). Point out any "(?)"
 fields that need a human check. If the person clearly belongs to a tracked
 project, offer to log the contact there (project-manager skill). Nothing else.
