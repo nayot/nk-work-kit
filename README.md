@@ -33,8 +33,9 @@ Ask Claude in your own words, or use the slash commands below.
   for Playwright, as for `pending-docs` — see [e-Leave](#e-leave).
 - For the `project-manager` skill only: [`uv`](https://docs.astral.sh/uv/) and an
   Obsidian vault — see [Project manager](#project-manager).
-- For the `business-card` skill only: the Gmail connector, and optionally a
-  `gcontacts` CLI on `PATH` to create and update contacts — see
+- For the `business-card` skill only: [`uv`](https://docs.astral.sh/uv/), the
+  Gmail connector, and the Google Cloud CLI (`gcloud`) signed in with the
+  contacts scope — see
   [Business cards](#business-cards).
 
 ## Install
@@ -402,16 +403,28 @@ are, phones normalised to `+66`, unsure characters flagged with "(?)" — and
 shows the fields as a table. It then:
 
 1. **Saves the contact.** It searches your Google Contacts first. An existing
-   contact is updated with `gcontacts update` and a new one is added with
-   `gcontacts create` (a small People API CLI, not part of this plugin), since
-   the Contacts connector is search-only. Without `gcontacts`, a new contact
-   becomes a `.vcf` file, built by `scripts/make_vcf.py`, in `~/Downloads/`,
+   contact is updated and a new one is created with `scripts/gcontacts.py`
+   (People API), since the Contacts connector is search-only. If that can't
+   sign in, a new contact becomes a `.vcf` file, built by `scripts/make_vcf.py`, in `~/Downloads/`,
    for you to import at contacts.google.com or open on your phone.
 2. **Drafts a greeting email** in Gmail — English, or Thai for Thai
    counterparts — thanking them and linking your vCard. It is a draft; nothing
    is sent.
 
+Setup, once: sign gcloud's Application Default Credentials in with the
+contacts scope. `gcontacts.py` stores nothing itself.
+
 ```bash
+gcloud auth application-default login \
+  --scopes=https://www.googleapis.com/auth/contacts,https://www.googleapis.com/auth/cloud-platform
+```
+
+Direct use:
+
+```bash
+uv run scripts/gcontacts.py search "Somchai"
+uv run scripts/gcontacts.py create contact.json        # refuses an email already on a contact; --force overrides
+uv run scripts/gcontacts.py update people/c123 --add-phone "+66 81 234 5678"
 python3 scripts/make_vcf.py contact.json Somchai_Jaidee.vcf
 ```
 

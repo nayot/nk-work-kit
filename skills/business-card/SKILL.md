@@ -1,7 +1,7 @@
 ---
 name: business-card
 description: Process a photo of a business card for Nayot — extract the contact details, save them to his Google Contacts, and draft a greeting email that shares his vCard link. Use this skill whenever the user uploads, pastes or points at a photo that looks like a business card or name card (นามบัตร), even if they only say "here's a card", "new contact", "met this person today", "บันทึกนามบัตร", or send the image with no text at all. Also use it for photos of several cards at once, or the front and back of one card.
-version: 1.1.0
+version: 1.2.0
 ---
 
 # Business card → contact + greeting email
@@ -11,14 +11,16 @@ Engineering, Bang Saen, Chonburi) meets many people at conferences, industry
 visits and partner meetings, often in the EEC. He photographs their cards and
 wants three things done with as little back-and-forth as possible.
 
-The vCard helper is:
+Two scripts ship with the plugin:
 
 ```
+uv run "${CLAUDE_PLUGIN_ROOT}/scripts/gcontacts.py" search|create|update ...
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/make_vcf.py" contact.json out.vcf
 ```
 
-If `CLAUDE_PLUGIN_ROOT` is not set, the script sits at
-`<plugin-root>/scripts/make_vcf.py`.
+Below, `gcontacts` is short for the first line (on Nayot's machine a
+`gcontacts` command on `PATH` runs the same script). If `CLAUDE_PLUGIN_ROOT` is
+not set, both sit in `<plugin-root>/scripts/`.
 
 ## Step 0 — Is it a business card?
 
@@ -60,8 +62,8 @@ The contact's note is `Card scanned <today's date>` plus any context Nayot gave
 ## Step 2 — Save to Google Contacts
 
 The Contacts MCP (`mcp__claude_ai_Google_Contacts__*`, load with ToolSearch) is
-**search-only**. Edits go through the `gcontacts` CLI (`~/.local/bin/gcontacts`,
-People API via gcloud ADC): `search`, `create` and `update`.
+**search-only**. Edits go through `gcontacts` (People API via gcloud Application
+Default Credentials): `search`, `create` and `update`, all printing JSON.
 
 1. **Check for an existing contact first.** Run `gcontacts search <email>`, then
    `gcontacts search "<name>"` (English, then Thai). `search_contacts` from the
@@ -92,11 +94,11 @@ People API via gcloud ADC): `search`, `create` and `update`.
    [{`address`, `type`}], `urls`, `address`
    {`street`,`city`,`region`,`postcode`,`country`}, `note`.
 
-If `gcontacts` is missing or fails on auth (expired gcloud ADC), say so with the
-error and fall back to a vCard: build it in `~/Downloads/<First>_<Last>.vcf` with
+If `gcontacts` fails on auth (no or expired gcloud ADC login, or a login without
+the contacts scope), say so with the error and fall back to a vCard: build it in `~/Downloads/<First>_<Last>.vcf` with
 `make_vcf.py` and tell him in one line to import it at contacts.google.com →
 Import, or open it on his phone. Re-authenticating gcloud is an interactive
-login he runs himself.
+login he runs himself — the command is in the README's Business cards section.
 
 ## Step 3 — Draft the greeting email
 
