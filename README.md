@@ -13,6 +13,7 @@ Engineering, Burapha University.
 | `e-leave` | Check leave balance and status in **BUU e-Leave**, and submit (ยื่นใบลา) or cancel leave requests with evidence attached — shows the rendered ใบลา and submits only after you approve it |
 | `transcribe` | Turn a meeting recording into a Markdown transcript — Thai, English or mixed |
 | `project-manager` | Track ongoing projects as notes in an **Obsidian** vault: a generated dashboard with links to the notes, updates while you work, and an optional email digest of upcoming and overdue items |
+| `business-card` | Turn a photo of a business card (นามบัตร) into a **Google Contact** (updating an existing one) and a Gmail **draft** greeting that shares your vCard link |
 
 Ask Claude in your own words, or use the slash commands below.
 
@@ -32,6 +33,9 @@ Ask Claude in your own words, or use the slash commands below.
   for Playwright, as for `pending-docs` — see [e-Leave](#e-leave).
 - For the `project-manager` skill only: [`uv`](https://docs.astral.sh/uv/) and an
   Obsidian vault — see [Project manager](#project-manager).
+- For the `business-card` skill only: the Gmail connector, and optionally a
+  `gcontacts` CLI on `PATH` to update existing contacts — see
+  [Business cards](#business-cards).
 
 ## Install
 
@@ -101,6 +105,7 @@ profile at `~/.local/share/buu-docnum/profile`, already outside the plugin.
 | `edoc-digest` | should work | tested | should work |
 | `e-leave` | tested (cancel not yet) | should work | should work |
 | `transcribe` | tested | should work | should work |
+| `business-card` | script tested (full flow not yet) | should work | should work |
 | `doc-number` | tested | should work | needs a graphical session |
 | `draft-memo` / `thai-memo` | tested | check the LibreOffice path | check the LibreOffice path |
 
@@ -388,6 +393,29 @@ uv run scripts/transcribe.py path/to/recording.m4a --model google/gemini-2.5-fla
 Ask Claude instead and it will pick a model, run it, and summarize the result
 in chat — see [`skills/transcribe/SKILL.md`](skills/transcribe/SKILL.md) for
 the model catalog and the long-file chunking behavior.
+
+## Business cards
+
+Send Claude a photo of a business card (or say "here's a card" with the image)
+and the `business-card` skill reads it — Thai and English sides kept as they
+are, phones normalised to `+66`, unsure characters flagged with "(?)" — and
+shows the fields as a table. It then:
+
+1. **Saves the contact.** It searches your Google Contacts first. An existing
+   contact is updated with `gcontacts update` (a small People API CLI, not part
+   of this plugin), since the Contacts connector is search-only. A new contact
+   becomes a `.vcf` file, built by `scripts/make_vcf.py`, in `~/Downloads/`,
+   for you to import at contacts.google.com or open on your phone.
+2. **Drafts a greeting email** in Gmail — English, or Thai for Thai
+   counterparts — thanking them and linking your vCard. It is a draft; nothing
+   is sent.
+
+```bash
+python3 scripts/make_vcf.py contact.json Somchai_Jaidee.vcf
+```
+
+The JSON fields are listed in
+[`skills/business-card/SKILL.md`](skills/business-card/SKILL.md).
 
 ## License
 
