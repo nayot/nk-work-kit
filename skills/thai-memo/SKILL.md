@@ -1,7 +1,7 @@
 ---
 name: thai-memo
 description: Activate this skill when the user asks to write, draft, or create a Thai official document — บันทึกข้อความ, บันทึกข้อความภายใน, หนังสือภายนอก, หนังสือราชการ, Thai government memo, Thai official letter, or any Thai administrative document. Also activate when the user says "ร่างบันทึกข้อความ", "เขียนหนังสือ", "ขอแก้ไขเกรด" (grade correction memo), or similar Thai bureaucratic writing tasks. Also covers sending a finished PDF to BUU e-Signature (e-sign.buu.ac.th) for signing.
-version: 1.2.0
+version: 1.3.0
 ---
 
 # Thai Official Document Skill
@@ -35,7 +35,7 @@ The full path for a document that will be signed:
 6. **Find build script**: locate `build_memo.py` in the `scripts/` directory alongside this plugin.
 7. **Run**: `python3 <plugin>/scripts/build_memo.py /tmp/memo_data_<timestamp>.json`
 8. **Convert to PDF**: `libreoffice --headless --convert-to pdf <output.odt> --outdir <dir>` — on macOS the binary is `/Applications/LibreOffice.app/Contents/MacOS/soffice`; plain `soffice` is not on PATH.
-9. **Look at the rendered PDF** before reporting it as finished (render a page to PNG and inspect it). Check the ที่ line, the sender block, คำลงท้าย and the signature block.
+9. **Look at the rendered PDF** before reporting it as finished (render a page to PNG and inspect it). Check the ที่ line, the sender block, คำลงท้าย, the signature block and (for `nok`) the contact box at the bottom left.
 10. **Upload to e-Signature** if the user asks — see below.
 
 ## Template locations
@@ -57,6 +57,7 @@ Do not re-implement these by hand or post-process the ODT — `build_memo.py` em
 
 - **`doc_number` renders inline** on the ที่ line: `ที่ อว ๘๑๑๖ / XXXX`, with the tab jumping to the sender block on the right. Pass only the part after `อว` — the script writes the `ที่ อว` prefix itself.
 - **คำลงท้าย** (`ขอแสดงความนับถือ`) is emitted automatically for `nok`, indented by tabs. Do **not** put it in `body[]` — it would appear twice. Pass `"closing": ""` to suppress it, or a different string to replace it.
+- **Contact box** (`contact_box`, list of lines — ส่วนราชการเจ้าของเรื่อง, โทร, ไปรษณีย์อิเล็กทรอนิกส์, email) is always emitted for `nok` as a borderless page-anchored text box at the bottom left of page 1. Always collect it; without it the box shows `from_org` only and the script warns.
 - **Signature and role lines** get a leading tab so they land on the centre tab stop of the `ลงชื่อ` style.
 - **`content.xml` is written with `pretty_print` off.** lxml's indentation between sibling spans is rendered by ODF as a visible space — that is what once produced `( ผู้ช่วยศาสตราจารย์ ... )` instead of `(ผู้ช่วยศาสตราจารย์ ...)`. Keep it off.
 

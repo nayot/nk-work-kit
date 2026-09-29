@@ -295,6 +295,65 @@ def build_nai(data, work_dir):
                xml_declaration=True, encoding="UTF-8")
 
 
+# Page geometry of แบบหนังสือภายนอก.ott (A4), in inches.
+NOK_PAGE_HEIGHT = 11.6929
+NOK_MARGIN_BOTTOM = 0.8744
+NOK_MARGIN_LEFT = 1.1811
+CONTACT_LINE_HEIGHT = 0.27   # one 14pt TH Sarabun New line
+
+
+def add_contact_box(root, body_text, seq, data):
+    """Add the borderless contact box at the bottom left of page 1.
+
+    Lines come from "contact_box"; without it, the box falls back to
+    from_org alone and a warning asks for the real contact details.
+    """
+    lines = data.get("contact_box")
+    if not lines:
+        lines = [data.get("from_org", "")]
+        print("warning: no contact_box given; the contact box shows from_org only",
+              file=sys.stderr)
+
+    auto = root.find(q("office", "automatic-styles"))
+    st = etree.SubElement(auto, q("style", "style"), {
+        q("style", "name"): "frContact",
+        q("style", "family"): "graphic",
+    })
+    etree.SubElement(st, q("style", "graphic-properties"), {
+        q("fo", "border"): "none",
+        q("fo", "padding"): "0in",
+        q("fo", "background-color"): "transparent",
+        q("draw", "fill"): "none",
+        q("draw", "stroke"): "none",
+        q("style", "wrap"): "run-through",
+        q("style", "run-through"): "foreground",
+        q("style", "vertical-pos"): "from-top",
+        q("style", "vertical-rel"): "page",
+        q("style", "horizontal-pos"): "from-left",
+        q("style", "horizontal-rel"): "page",
+    })
+
+    height = CONTACT_LINE_HEIGHT * len(lines) + 0.05
+    y = NOK_PAGE_HEIGHT - NOK_MARGIN_BOTTOM - height
+    frame = etree.Element(q("draw", "frame"), {
+        q("draw", "style-name"): "frContact",
+        q("draw", "name"): "ContactBox",
+        q("text", "anchor-type"): "page",
+        q("text", "anchor-page-number"): "1",
+        q("svg", "x"): f"{NOK_MARGIN_LEFT}in",
+        q("svg", "y"): f"{y:.4f}in",
+        q("svg", "width"): "3.2in",
+        q("svg", "height"): f"{height:.4f}in",
+        q("draw", "z-index"): "1",
+    })
+    box = etree.SubElement(frame, q("draw", "text-box"))
+    for line in lines:
+        lp = etree.SubElement(box, q("text", "p"), {q("text", "style-name"): "Standard"})
+        span(lp, "T6", line)
+    # A page-anchored frame sits directly in office:text, before the first paragraph.
+    body_text.insert(1 if seq is not None else 0, frame)
+
+
 # ══════════════════════════════════════════════════════════════
 # External letter (หนังสือภายนอก)
 # ══════════════════════════════════════════════════════════════
@@ -419,6 +478,11 @@ def build_nok(data, work_dir):
         rp = para(body_text, "P6")
         etree.SubElement(rp, q("text", "tab"))
         span(rp, "T6", role)
+
+    # ── contact box (ส่วนราชการเจ้าของเรื่อง / โทร / อีเมล) ─────────
+    # Always present on a หนังสือภายนอก: a borderless text box at the
+    # bottom left of page 1, sitting on the bottom margin.
+    add_contact_box(root, body_text, seq, data)
 
     # pretty_print must stay off: the newline + indentation lxml would insert
     # between sibling spans is rendered by ODF as a visible space, e.g.

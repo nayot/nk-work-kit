@@ -175,6 +175,7 @@ See [`examples/grade_correction_nai.json`](examples/grade_correction_nai.json) f
 | `attachments` | string[] | optional | optional | สิ่งที่แนบ (numbered list) |
 | `signer_name` | string | ✓ | ✓ | ชื่อผู้ลงนาม |
 | `signer_roles` | string[] | ✓ | ✓ | ตำแหน่ง (one string per line) |
+| `contact_box` | string[] | — | ✓ | ส่วนราชการเจ้าของเรื่อง / โทร / อีเมล — one string per line, printed in a borderless text box at the bottom left of page 1. Always emitted; without it the box shows `from_org` only, with a warning |
 | `output` | string | optional | optional | Output `.odt` path |
 
 ## Templates

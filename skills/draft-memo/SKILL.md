@@ -63,6 +63,11 @@ Ask the user for missing fields. Use the language they're writing in (Thai/Engli
 | `closing` | คำลงท้าย | No — defaults to `ขอแสดงความนับถือ`; `""` omits it |
 | `signer_name` | ชื่อผู้ลงนาม | Yes |
 | `signer_roles` | ตำแหน่ง | Yes |
+| `contact_box` | ส่วนราชการเจ้าของเรื่อง / โทร / อีเมล | Yes — list of lines, e.g. `["ภาควิชาวิศวกรรมไฟฟ้า", "โทร ๐๘๑-xxx-xxxx", "ไปรษณีย์อิเล็กทรอนิกส์", "name@eng.buu.ac.th"]` |
+
+The script always prints `contact_box` as a borderless text box at the bottom
+left of page 1 (without it, the box shows `from_org` only and warns), so do not
+add the contact lines to `body[]` or post-process the ODT to add one.
 
 The script writes the `ที่ อว` prefix and puts `doc_number` on the same line as
 the sender block, so do not repeat either in `from_org`.
@@ -143,7 +148,7 @@ Write `/tmp/memo_data_<timestamp>.json`:
 }
 ```
 
-For `nok`, add `"from_org"`, `"from_address"` and `"enclosures"`; omit
+For `nok`, add `"from_org"`, `"from_address"`, `"enclosures"` and `"contact_box"`; omit
 `"department"` and `"phone"`. `"closing"` defaults to `ขอแสดงความนับถือ`:
 
 ```json
@@ -164,6 +169,12 @@ For `nok`, add `"from_org"`, `"from_address"` and `"enclosures"`; omit
   ],
   "signer_name": "ผู้ช่วยศาสตราจารย์ ดร. ชื่อ  นามสกุล",
   "signer_roles": ["คณบดีคณะวิศวกรรมศาสตร์"],
+  "contact_box": [
+    "ภาควิชาวิศวกรรมไฟฟ้า",
+    "โทร ๐๘๑-xxx-xxxx",
+    "ไปรษณีย์อิเล็กทรอนิกส์",
+    "name@eng.buu.ac.th"
+  ],
   "output": "/home/user/documents/letter.odt"
 }
 ```
