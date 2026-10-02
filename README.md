@@ -13,7 +13,7 @@ Engineering, Burapha University.
 | `e-leave` | Check leave balance and status in **BUU e-Leave**, and submit (ยื่นใบลา) or cancel leave requests with evidence attached — shows the rendered ใบลา and submits only after you approve it |
 | `transcribe` | Turn a meeting recording into a Markdown transcript — Thai, English or mixed |
 | `project-manager` | Track ongoing projects as notes in an **Obsidian** vault: a generated dashboard with links to the notes, updates while you work, and an optional email digest of upcoming and overdue items |
-| `business-card` | Turn a photo of a business card (นามบัตร) into a **Google Contact** (updating an existing one) and a Gmail **draft** greeting that shares your vCard link |
+| `business-card` | Turn a photo of a business card (นามบัตร) into a **Google Contact** (updating an existing one) and a Gmail **draft** greeting that shares your vCard link, and files the photo in your Drive **Business Cards** folder |
 
 Ask Claude in your own words, or use the slash commands below.
 
@@ -34,8 +34,9 @@ Ask Claude in your own words, or use the slash commands below.
 - For the `project-manager` skill only: [`uv`](https://docs.astral.sh/uv/) and an
   Obsidian vault — see [Project manager](#project-manager).
 - For the `business-card` skill only: [`uv`](https://docs.astral.sh/uv/), the
-  Gmail connector, and the Google Cloud CLI (`gcloud`) signed in with the
-  contacts scope — see
+  Gmail connector, the Google Cloud CLI (`gcloud`) signed in with the
+  contacts scope, and [`rclone`](https://rclone.org/) with a Google Drive
+  remote (to file the card photos) — see
   [Business cards](#business-cards).
 
 ## Install
@@ -410,7 +411,11 @@ shows the fields as a table. It then:
    (People API), since the Contacts connector is search-only. If that can't
    sign in, a new contact becomes a `.vcf` file, built by `scripts/make_vcf.py`, in `~/Downloads/`,
    for you to import at contacts.google.com or open on your phone.
-2. **Drafts a greeting email** in Gmail — English, or Thai for Thai
+2. **Files the photo** in your Google Drive "Business Cards" folder with
+   `rclone`, named `<First> <Last> - <Org> <date>`. It copies the photo, so the
+   local file stays, and never overwrites a file of the same name. It needs an
+   rclone Google Drive remote, and is skipped if there isn't one.
+3. **Drafts a greeting email** in Gmail — English, or Thai for Thai
    counterparts — thanking them and linking your vCard. It is a draft; nothing
    is sent.
 

@@ -1,15 +1,15 @@
 ---
 name: business-card
-description: Process a photo of a business card for Nayot — extract the contact details, save them to his Google Contacts, and draft a greeting email that shares his vCard link. Use this skill whenever the user uploads, pastes or points at a photo that looks like a business card or name card (นามบัตร), even if they only say "here's a card", "new contact", "met this person today", "บันทึกนามบัตร", or send the image with no text at all. Also use it for photos of several cards at once, or the front and back of one card.
-version: 1.2.0
+description: Process a photo of a business card for Nayot — extract the contact details, save them to his Google Contacts, file the photo in his Google Drive "Business Cards" folder, and draft a greeting email that shares his vCard link. Use this skill whenever the user uploads, pastes or points at a photo that looks like a business card or name card (นามบัตร), even if they only say "here's a card", "new contact", "met this person today", "บันทึกนามบัตร", or send the image with no text at all. Also use it for photos of several cards at once, or the front and back of one card.
+version: 1.4.0
 ---
 
 # Business card → contact + greeting email
 
-Nayot (Asst. Prof. Dr. Nayot Kurukitkoson, Burapha University Faculty of
-Engineering, Bang Saen, Chonburi) meets many people at conferences, industry
+Nayot (Prof. Dr. Nayot Kurukitkoson, Department of Electrical Engineering,
+Burapha University, Bang Saen, Chonburi) meets many people at conferences, industry
 visits and partner meetings, often in the EEC. He photographs their cards and
-wants three things done with as little back-and-forth as possible.
+wants four things done with as little back-and-forth as possible.
 
 Two scripts ship with the plugin:
 
@@ -53,7 +53,7 @@ Capture:
 - QR code contents if legible (often a vCard or LINE link)
 
 Show the result as a short table and flag anything you're unsure of with "(?)"
-— e.g. an ambiguous 0/O or 1/l in an email address. Email errors break Step 3,
+— e.g. an ambiguous 0/O or 1/l in an email address. Email errors break Step 4,
 so double-check those characters. Do not guess missing fields.
 
 The contact's note is `Card scanned <today's date>` plus any context Nayot gave
@@ -100,7 +100,48 @@ the contacts scope), say so with the error and fall back to a vCard: build it in
 Import, or open it on his phone. Re-authenticating gcloud is an interactive
 login he runs himself — the command is in the README's Business cards section.
 
-## Step 3 — Draft the greeting email
+## Step 3 — File the photo in Google Drive
+
+Upload the card photo to his **Business Cards** folder
+(`https://drive.google.com/drive/folders/1_tOvIqzHdGV8sBR5S2htnzINk5k9lQ2E`,
+folder ID `1_tOvIqzHdGV8sBR5S2htnzINk5k9lQ2E`) with `rclone`. Copy, don't move:
+the local photo stays where it is.
+
+This needs the photo as a file on disk. If he only pasted the image into the
+chat and there is no path, skip this step and ask in the Finish line for the
+file path so you can file it then.
+
+1. **Remote.** Use the Google Drive remote from `rclone listremotes --type drive`
+   (on Nayot's machine it's `google-drive:`). If there are several, ask which
+   one. If there are none, or rclone is missing, say so (`rclone config`
+   creates one) and skip the upload.
+2. **Name.** Call it `<First> <Last> - <Org> <YYYY-MM-DD>.<ext>` in English,
+   keeping the original extension. Leave out `- <Org>` if the card has no
+   organisation. Add ` front` / ` back` for a two-sided card, and use
+   `Business cards <YYYY-MM-DD>` for one photo of several cards. Leave out
+   `/` and `:`.
+3. **Check for a clash.** Drive allows duplicate names, and `rclone copyto`
+   would overwrite the file that is already there:
+   ```bash
+   rclone lsf "google-drive:<name>" --drive-root-folder-id 1_tOvIqzHdGV8sBR5S2htnzINk5k9lQ2E
+   ```
+   If this prints the name, add ` (2)`, ` (3)` and so on until the name is free.
+   When the name is free, rclone prints `directory not found` and exits with
+   code 3. That is the expected result, not an error.
+4. **Upload and get the link:**
+   ```bash
+   rclone copyto "<photo-path>" "google-drive:<name>" --drive-root-folder-id 1_tOvIqzHdGV8sBR5S2htnzINk5k9lQ2E
+   rclone lsjson "google-drive:<name>" --drive-root-folder-id 1_tOvIqzHdGV8sBR5S2htnzINk5k9lQ2E
+   ```
+   The file's link is `https://drive.google.com/file/d/<ID>/view`, where `<ID>`
+   comes from the `lsjson` output. Never use `rclone link`: it makes the file
+   public.
+
+If the upload fails (an expired token, or the folder can't be reached), report
+the error in one line and carry on with Step 4. The contact and the draft don't
+depend on the upload.
+
+## Step 4 — Draft the greeting email
 
 **Draft only — never send.** Use Gmail `create_draft` (load with ToolSearch,
 `mcp__claude_ai_Gmail__create_draft`), addressed to the email on the card, and
@@ -121,22 +162,18 @@ Content:
 - One sentence on staying in touch / possible collaboration.
 - The vCard link: `My contact details are here: https://nayot.github.io/vCard`
   (Thai: `ข้อมูลติดต่อของผมอยู่ที่ https://nayot.github.io/vCard`).
-- Sign-off:
-  ```
-  Best regards,
-  Nayot Kurukitkoson
-  Faculty of Engineering, Burapha University
-  https://nayot.github.io/vCard
-  ```
+- Sign-off: `Best regards,` and then `Nayot` on its own line. Leave out his
+  full name, title, department and URL: his Gmail signature adds those.
 
-For Thai: first person ผม, particle ครับ, close with `ขอบคุณครับ` and sign `ณยศ`
-followed by his full Thai name and `คณะวิศวกรรมศาสตร์ มหาวิทยาลัยบูรพา`. Never
-transliterate his surname into Thai: take the exact spelling from one of his own
-Thai emails (Gmail `search_threads`, `from:me` with Thai text) or ask him.
+For Thai: first person ผม, particle ครับ, close with `ขอบคุณครับ` and then `ณยศ`
+on its own line, with nothing after it. If the body needs his full Thai name,
+never transliterate his surname into Thai. Take the exact spelling from one of
+his own Thai emails (Gmail `search_threads`, `from:me` with Thai text), or ask
+him.
 
 ## Finish
 
 Reply briefly: the extracted table, the contact status (updated / created / `.vcf` to
-import), and the Gmail draft link (or the email text). Point out any "(?)"
+import), the Drive link for the photo (or why it wasn't filed), and the Gmail draft link (or the email text). Point out any "(?)"
 fields that need a human check. If the person clearly belongs to a tracked
 project, offer to log the contact there (project-manager skill). Nothing else.
