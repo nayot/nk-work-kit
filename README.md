@@ -298,8 +298,10 @@ counts for a project when its line links the hub.
 
 While you work, Claude updates the hub notes (ticks tasks, logs meetings,
 moves the next action) and regenerates `Projects/Dashboard.md`. The dashboard
-leads with **Dataview** views: overdue, due in the next 14 days, active
-projects with a stale flag, and waiting-on-others. They are live: they update
+leads with **Dataview** views: loose tasks (from `Projects/To-do.md`, ranked
+by ⏫/🔽 priority, then due date), a focus list of overdue and due-in-14-days
+items, one row per project with open/late task counts and a stale flag, and
+waiting-on-others. A loose task can later be turned into a project. They are live: they update
 the moment a note changes, and ticking a task in the dashboard ticks it in its
 note. The views need the Dataview plugin, and the dashboard explains how to
 install it.

@@ -118,6 +118,9 @@ PRIORITY_ORDER = {"high": 0, "normal": 1, "low": 2}
 TASK_RE = re.compile(r"^\s*[-*] \[(?P<mark>.)\] (?P<body>.*)$")
 DUE_RE = re.compile(r"📅\s*(\d{4}-\d{2}-\d{2})")
 CREATED_RE = re.compile(r"\s*➕\s*\d{4}-\d{2}-\d{2}")
+# Tasks-plugin priority markers: highest, high, medium, low, lowest.
+PRIO_MARK_RE = re.compile(r"\s*[🔺⏫🔼🔽⏬]\uFE0F?")
+TODO_NAME = "To-do.md"
 MD_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 DASHBOARD_NAME = "Dashboard.md"
 MANUAL_NAME = "User Manual.md"
@@ -194,6 +197,7 @@ class Project:
     file: str
     status: str = "active"
     priority: str = "normal"
+    kind: str = "project"   # project | todo (the loose to-do list, Projects/To-do.md)
     area: str = ""
     due: str | None = None
     next_action: str = ""
@@ -241,7 +245,7 @@ def open_tasks(text: str):
             continue
         body = m["body"]
         due = DUE_RE.search(body)
-        clean = CREATED_RE.sub("", DUE_RE.sub("", body)).strip()
+        clean = PRIO_MARK_RE.sub("", CREATED_RE.sub("", DUE_RE.sub("", body))).strip()
         yield n, clean, due.group(1) if due else None
 
 
@@ -258,11 +262,11 @@ def scan(vault: Path) -> list[Project]:
         if kind in ("dashboard", "manual"):     # generated; the manual has example tasks
             continue
         notes[rel] = text
-        if kind != "project":
+        if kind not in ("project", "todo"):
             continue
         name = path.stem
         p = Project(
-            name=name, file=rel.as_posix(),
+            name=name, file=rel.as_posix(), kind=kind,
             status=str(meta.get("status") or "active").lower(),
             priority=str(meta.get("priority") or "normal").lower(),
             area=str(meta.get("area") or ""),
@@ -328,7 +332,7 @@ def buckets(projects: list[Project], days: int):
 
 
 def is_stale(p: Project, stale_days: int) -> bool:
-    if p.status not in ("active", "waiting"):
+    if p.kind != "project" or p.status not in ("active", "waiting"):
         return False
     if not p.updated:
         return True
@@ -368,58 +372,80 @@ def dataview_enabled(vault: Path) -> bool:
 
 
 def dataview_blocks(folder: str, days: int, stale_days: int) -> list[str]:
-    """Live Dataview views of the projects and their dated items. They re-render
-    whenever a note changes, and ticking a task in a TASK view edits its note.
+    """Live Dataview views. They re-render whenever a note changes, and ticking
+    a task in a TASK view edits its note. Layout: Focus (dated items due soon or
+    late, from every project and the to-do note), Loose tasks (the to-do note,
+    ranked), Projects (one row each, with task counts instead of task lists),
+    Waiting on others.
 
     The script's rules, in DQL: a task belongs to a project when it sits in a
-    hub note under PM_FOLDER or its line links to one; done (`[x]`) and
-    cancelled (`[-]`) tasks don't count, nor do tasks in a done/dropped hub.
-    A TASK view can't show frontmatter dates, so next actions and project
-    deadlines get a TABLE of their own under each date heading, skipping a
-    date an open task in the hub already carries (as buckets() does).
+    note under PM_FOLDER (a hub or the to-do note) or its line links to one;
+    done (`[x]`) and cancelled (`[-]`) tasks don't count, nor do tasks in a
+    done/dropped hub. A TASK view can't show frontmatter dates, so next actions
+    and project deadlines get one table under Focus, skipping a date an open
+    task in the hub already carries (as buckets() does).
 
     Dataview gives each task its page's fields unless the task has its own
     (executeTask in Dataview 0.5.68): an undated task in a hub with `due:` in
     its frontmatter has that `due`. Hence the `📅` test on the task text."""
     prefix = folder.rstrip("/") + "/"
+    todo = f"{folder}/{TODO_NAME[:-3]}"
     in_project = (f'(startswith(file.path, "{prefix}") OR '
                   f'any(outlinks, (o) => startswith(meta(o).path, "{prefix}")))')
-    open_task = ('!completed AND status != "-" AND contains(text, "📅") AND '
-                 '!contains(list("done", "dropped"), file.frontmatter.status)')
+    live_task = '!completed AND status != "-"'
+    open_task = (f'{live_task} AND contains(text, "📅") AND '
+                 '!contains(list("done", "dropped"), file.frontmatter.status) AND '
+                 '!contains(list("dashboard", "manual"), file.frontmatter.type)')
     task_dates = 'filter(file.tasks, (t) => !t.completed AND t.status != "-" AND t.due).due'
     hub = f'FROM "{folder}"\nWHERE type = "project" AND !contains(list("done", "dropped"), status)'
     window = f"date(today) + dur({days} days)"
     by_priority = 'choice(priority = "high", 0, choice(priority = "low", 2, 1)) ASC'
-    stale = (f'choice(updated AND date(today) - updated <= dur({stale_days} days), "", "⚠️ stale") '
+    # Loose tasks rank by their Tasks-plugin marker: 🔺/⏫ high, 🔽/⏬ low, else normal.
+    rank = ('choice(contains(text, "🔺") OR contains(text, "⏫"), "1 · High", '
+            'choice(contains(text, "🔽") OR contains(text, "⏬"), "3 · Low", "2 · Normal"))')
+    hub_tasks = 'filter(file.tasks, (t) => !t.completed AND t.status != "-")'
+    late = (f'filter(file.tasks, (t) => !t.completed AND t.status != "-" AND contains(t.text, "📅")'
+            ' AND t.due < date(today))')
+    stale = (f'choice(updated AND date(today) - updated <= dur({stale_days} days), "", "⚠️") '
              'AS Stale')
 
     def task_view(cond: str) -> list[str]:
         return ["```dataview", "TASK", f"WHERE {open_task} AND due AND {cond}",
                 f"AND {in_project}", "SORT due ASC", "GROUP BY file.link", "```"]
 
-    def dates_table(cond_next: str, cond_due: str) -> list[str]:
-        return ["Next actions and project deadlines:", "",
-                "```dataview",
-                'TABLE WITHOUT ID file.link AS Project, next_action AS "Next action", '
-                'next_action_due AS "Next action due", due AS Deadline',
-                hub, f"AND ((next_action_due AND {cond_next} AND !contains({task_dates}, next_action_due))"
-                f" OR (due AND {cond_due} AND !contains({task_dates}, due)))",
-                "SORT next_action_due ASC, due ASC", "```"]
+    def projects_table(statuses: str, quote: str = "") -> list[str]:
+        lines = ["```dataview",
+                 'TABLE WITHOUT ID file.link AS Project, priority AS Pri, status AS Status, '
+                 'next_action AS "Next action", next_action_due AS Due, '
+                 f'length({hub_tasks}) AS Open, length({late}) AS Late, {stale}',
+                 f'FROM "{folder}"', f'WHERE type = "project" AND contains(list({statuses}), status)',
+                 f"SORT {by_priority}, next_action_due ASC", "```"]
+        return [quote + ln if ln else quote.rstrip() for ln in lines]
 
     return [
-        "## 🔴 Overdue", "",
+        "## 📥 Loose tasks", "",
+        f"Tasks that don't belong to a project yet, kept in [[{todo}|To-do]]. Mark ⏫ high or 🔽 low;"
+        " to grow one into a project, ask Claude to make it a project.", "",
+        "```dataview", "TASK", f'FROM "{todo}"', f"WHERE {live_task}",
+        f'SORT {rank} ASC, choice(contains(text, "📅"), due, date("2999-12-31")) ASC',
+        f"GROUP BY {rank}", "```", "",
+        "## 🎯 Focus", "",
+        "### 🔴 Overdue", "",
         *task_view("due < date(today)"), "",
-        *dates_table("next_action_due < date(today)", "due < date(today)"), "",
-        f"## 🟡 Due in the next {days} days", "",
+        f"### 🟡 Due in the next {days} days", "",
         *task_view(f"due >= date(today) AND due <= {window}"), "",
-        *dates_table(f"next_action_due >= date(today) AND next_action_due <= {window}",
-                     f"due >= date(today) AND due <= {window}"), "",
-        "## Active projects", "",
+        "Next actions and deadlines in project notes (late or due soon):", "",
         "```dataview",
-        'TABLE WITHOUT ID file.link AS Project, priority AS Priority, next_action AS "Next action", '
-        f'next_action_due AS Due, waiting_on AS "Waiting on", updated AS Updated, {stale}',
-        f'FROM "{folder}"', 'WHERE type = "project" AND status = "active"',
-        f"SORT {by_priority}, next_action_due ASC", "```", "",
+        'TABLE WITHOUT ID file.link AS Project, next_action AS "Next action", '
+        'next_action_due AS "Next action due", due AS Deadline',
+        hub, f"AND ((next_action_due AND next_action_due <= {window} AND !contains({task_dates}, next_action_due))"
+        f" OR (due AND due <= {window} AND !contains({task_dates}, due)))",
+        "SORT next_action_due ASC, due ASC", "```", "",
+        "## 📁 Projects", "",
+        "One row per project; open its note for the tasks. **Open** and **Late** count the tasks in the note.", "",
+        *projects_table('"active", "waiting"'), "",
+        "> [!note]- Ideas and on-hold",
+        *projects_table('"idea", "on-hold"', "> "), "",
         "## ⏳ Waiting on others", "",
         "```dataview",
         'TABLE WITHOUT ID file.link AS Project, status AS Status, waiting_on AS "Waiting on", '
@@ -876,7 +902,7 @@ def cmd_scan_inbox(vault: Path, projects: list[Project], dry_run: bool) -> None:
     started = dt.datetime.now().timestamp()
     mail, me = fetch_mail(session, state, int(os.environ.get("PM_SCAN_MAX_MAIL", "40")))
     events = fetch_events(session, state, int(os.environ.get("PM_SCAN_DAYS", "14")))
-    live = [p for p in projects if p.status not in ("done", "dropped")]
+    live = [p for p in projects if p.kind == "project" and p.status not in ("done", "dropped")]
     sources = {f"m{i}": m for i, m in enumerate(mail, 1)} | {f"e{i}": e for i, e in enumerate(events, 1)}
     print(f"scan-inbox: {len(mail)} new emails, {len(events)} new/changed events, {len(live)} projects")
 
@@ -1078,7 +1104,7 @@ def main() -> None:
         if (manual := write_manual(vault, days, stale_days)):
             print(f"wrote {manual.relative_to(vault).as_posix()}")
         o, s_ = buckets(projects, days)
-        print(f"{path.relative_to(vault).as_posix()}: {len(projects)} projects, "
+        print(f"{path.relative_to(vault).as_posix()}: {sum(p.kind == 'project' for p in projects)} projects, "
               f"{len(o)} overdue, {len(s_)} due in {days}d")
     elif a.cmd == "scan-inbox":
         cmd_scan_inbox(vault, projects, a.dry_run)

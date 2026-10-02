@@ -24,10 +24,12 @@ Each ongoing project is one **hub note** in `{{FOLDER}}/`. The hub records the p
 
 | Section | Shows |
 |---|---|
-| 🔴 Overdue | Open dated tasks, next actions and project deadlines that are past due |
-| 🟡 Due in the next {{DAYS}} days | The same, due between today and {{DAYS}} days from now |
-| Active projects | Priority, next action, who you are waiting on, last update; ⚠️ stale = not updated for {{STALE_DAYS}} days |
+| 📥 Loose tasks | Tasks that don't belong to a project yet, from [[{{FOLDER}}/To-do\|To-do]], grouped High / Normal / Low (⏫ / no marker / 🔽), then by due date |
+| 🎯 Focus | 🔴 Overdue and 🟡 due in the next {{DAYS}} days: dated tasks from every project and the to-do list, plus next actions and project deadlines that aren't already a task |
+| 📁 Projects | One row per active or waiting project: priority, next action, open and late task counts; ⚠️ = not updated for {{STALE_DAYS}} days. Ideas and on-hold projects sit in a collapsed table |
 | ⏳ Waiting on others | Projects that are `waiting`, or active ones that name someone to chase |
+
+A project's tasks are listed on the dashboard only when they are due soon or late; open the project note to see them all.
 
 The views are **live**. They update as soon as any note changes, and ticking a task on the dashboard ticks it in its own note. Don't edit the dashboard itself: it is regenerated and your edits would be lost.
 
@@ -76,6 +78,8 @@ Ask in plain English or Thai, for example:
 | "Update ABET: the letters went out today" | Ticks the task, logs it, moves the next action |
 | "Add a new project: Lab renovation" | Creates a hub, pre-filled from your notes, email and calendar |
 | "Log this meeting summary to the IPC project" | Links the note and adds a Log line |
+| "Add to my to-do: inspect HR data" | Adds a loose task to To-do (with ⏫/🔽 and a date if you give them) |
+| "Make the HR data task a project" | Creates a hub for it and moves the task there |
 | "Set up project tracking" | First-time setup: finds candidate projects and creates the hubs |
 | "Set up the project digest" | Sets up the scheduled email digest |
 
@@ -125,10 +129,12 @@ After changing `PM_FOLDER`, `PM_NOTIFY_DAYS` or `PM_STALE_DAYS`, ask Claude to "
 
 | ส่วน | แสดง |
 |---|---|
-| 🔴 Overdue (เลยกำหนด) | งานที่มีกำหนดส่ง งานถัดไป และกำหนดส่งโครงการที่เลยวันกำหนดแล้ว |
-| 🟡 Due in the next {{DAYS}} days (ใกล้ถึงกำหนด) | รายการประเภทเดียวกันที่ครบกำหนดภายใน {{DAYS}} วันนับจากวันนี้ |
-| Active projects (โครงการที่ดำเนินอยู่) | ความสำคัญ งานถัดไป ผู้ที่รออยู่ วันที่อัปเดตล่าสุด ⚠️ stale = ไม่ได้อัปเดตเกิน {{STALE_DAYS}} วัน |
+| 📥 Loose tasks (งานทั่วไป) | งานที่ยังไม่อยู่ในโครงการใด จากโน้ต [[{{FOLDER}}/To-do\|To-do]] จัดกลุ่มตามความสำคัญ สูง / ปกติ / ต่ำ (⏫ / ไม่มีเครื่องหมาย / 🔽) แล้วเรียงตามวันกำหนดส่ง |
+| 🎯 Focus (งานเร่งด่วน) | 🔴 เลยกำหนด และ 🟡 ครบกำหนดภายใน {{DAYS}} วัน: งานที่มีกำหนดส่งจากทุกโครงการและรายการงานทั่วไป รวมถึงงานถัดไปและกำหนดส่งโครงการที่ยังไม่ได้เขียนเป็นงาน |
+| 📁 Projects (โครงการ) | หนึ่งแถวต่อหนึ่งโครงการที่ดำเนินอยู่หรือรออยู่: ความสำคัญ งานถัดไป จำนวนงานค้างและงานที่เลยกำหนด ⚠️ = ไม่ได้อัปเดตเกิน {{STALE_DAYS}} วัน โครงการสถานะ idea และ on-hold อยู่ในตารางที่ย่อไว้ |
 | ⏳ Waiting on others (รอผู้อื่น) | โครงการสถานะ `waiting` หรือโครงการที่ระบุผู้ที่ต้องติดตาม |
+
+งานของแต่ละโครงการจะแสดงบนแดชบอร์ดเฉพาะเมื่อใกล้ถึงกำหนดหรือเลยกำหนดแล้ว หากต้องการดูงานทั้งหมด ให้เปิดโน้ตหลักของโครงการนั้น
 
 ทุกส่วนแสดงผล **แบบสด** เมื่อโน้ตใดเปลี่ยน แดชบอร์ดจะอัปเดตทันที และเมื่อติ๊กงานบนแดชบอร์ด งานนั้นจะถูกติ๊กในโน้ตต้นทางด้วย อย่าแก้ไขแดชบอร์ดโดยตรง เพราะแดชบอร์ดถูกสร้างใหม่อยู่เสมอ สิ่งที่แก้ไว้จะหายไป
 
@@ -177,6 +183,8 @@ After changing `PM_FOLDER`, `PM_NOTIFY_DAYS` or `PM_STALE_DAYS`, ask Claude to "
 | "อัปเดตโครงการ ABET: ส่งหนังสือเชิญแล้ววันนี้" | ติ๊กงาน บันทึกลง Log และเลื่อนงานถัดไป |
 | "เพิ่มโครงการใหม่: ปรับปรุงห้องปฏิบัติการ" | สร้างโน้ตหลัก โดยเติมข้อมูลจากโน้ต อีเมล และปฏิทิน |
 | "บันทึกสรุปการประชุมนี้ลงโครงการ IPC" | ลิงก์โน้ตและเพิ่มบรรทัดใน Log |
+| "เพิ่มงาน: ตรวจข้อมูล HR" | เพิ่มงานทั่วไปลงโน้ต To-do (พร้อม ⏫/🔽 และวันกำหนดส่ง หากระบุ) |
+| "ยกระดับงานตรวจข้อมูล HR เป็นโครงการ" | สร้างโน้ตหลักของโครงการ แล้วย้ายงานนั้นเข้าไป |
 | "ตั้งค่าติดตามโครงการ" | ตั้งค่าครั้งแรก: หาโครงการที่น่าจะติดตามและสร้างโน้ตหลักให้ |
 | "ตั้งค่าอีเมลสรุปโครงการ" | ตั้งเวลาส่งอีเมลสรุป |
 

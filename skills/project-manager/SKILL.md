@@ -3,7 +3,7 @@ name: project-manager
 description: Activate this skill when the user wants to see or update the status of their ongoing projects, tracked as notes in their Obsidian vault — "project status", "สถานะโครงการ", "สถานะโปรเจกต์", "update the X project", "อัปเดตโครงการ", "what's due this week", "มีอะไรใกล้ถึงกำหนด", "มีอะไรเลยกำหนด", "what's overdue", "add a new project", "เพิ่มโครงการ", "update the dashboard", "project digest", "set up project tracking", "ตั้งค่าติดตามโครงการ", "set up the inbox scan", "scan my email for tasks", "ตั้งค่าสแกนอีเมลหางาน". Also activate after a meeting summary, transcript, memo, document number or eDoc item clearly belongs to a tracked project — offer to log it there. Can set up a scheduled email digest of upcoming and overdue items, and a scheduled scan of Gmail and Calendar that adds new tasks to the matching project.
 argument-hint: "[setup | status | due | update <project> | new <name> | dashboard | setup-notify | setup-scan]"
 allowed-tools: [Bash, Read, Edit, Write]
-version: 1.5.1
+version: 1.6.0
 ---
 
 # Project manager — Obsidian as database and dashboard
@@ -82,6 +82,7 @@ before every write. It must never modify the user's existing notes.
      in the Log;
    - a first Log line saying where the information came from.
 
+   Also create `Projects/To-do.md` for loose tasks (see the data model).
    Then run `dashboard` and show the counts: projects, overdue, due soon.
 7. **Offer the email digest (optional).** Walk through **Email digest** below:
    - pick a mail method;
@@ -124,6 +125,25 @@ Body sections are **Summary**, **Milestones / Tasks**, **Related notes** and
 `- [ ] Send draft MOU 📅 2026-10-02`, done as `- [x] … ✅ 2026-10-01`. A task in
 any other note counts for a project when its line links the hub
 (`- [ ] Book room [[ABET Accreditation]] 📅 2026-10-05`).
+
+**Loose tasks** that belong to no project live in `Projects/To-do.md`
+(`TODO_NAME`), a note with frontmatter `type: todo` and a `## Tasks` list.
+Mark priority with the Tasks-plugin markers `⏫` (high) or `🔽` (low); no
+marker is normal. `projects.py` treats the note as a pseudo-project named
+`To-do` (`kind: "todo"` in `list --json`): its dated tasks reach the digest,
+but it is never stale, never counted as a project and never offered to
+`scan-inbox`. Create it during setup (or when the user first adds a loose
+task) if it is missing:
+
+```markdown
+---
+type: todo
+---
+# To-do
+
+## Tasks
+- [ ] Inspect HR data
+```
 
 ## Commands
 
@@ -196,6 +216,12 @@ record what happened, don't editorialise. Then:
 the user, an email, a calendar event or a document. A date you suggest as a
 buffer must be marked as a suggestion in the Log line.
 
+**Loose tasks:** "add to my to-do …" appends `- [ ] …` under `## Tasks` in
+`To-do.md`, with `⏫`/`🔽` and `📅` only when the user gives them. When the
+user asks to **make a loose task a project**, create the hub with `new`, move
+the task line (and any context) into its Milestones / Tasks, delete the line
+from `To-do.md`, and log the move in the hub's Log.
+
 **New projects** (one at a time, after setup): look for existing notes about the project first, so the hub
 can link them, then create it with `new` and fill in the sections. You can offer
 to pre-fill the hub from the vault, email and calendar.
@@ -209,12 +235,18 @@ hand-edit it.
 
 `Projects/Dashboard.md` is made of **live Dataview views**:
 
-- 🔴 Overdue and 🟡 Due in the next N days (`PM_NOTIFY_DAYS`). Each has a
-  `TASK` view of dated tasks, grouped by note, and a table of next actions and
-  project deadlines that no open task already restates;
-- Active projects, with priority, next action, waiting-on and a stale flag
-  (`PM_STALE_DAYS`);
+- 📥 Loose tasks: a `TASK` view of `To-do.md` only, grouped High / Normal /
+  Low by the task's marker, then by due date (undated last);
+- 🎯 Focus: 🔴 Overdue and 🟡 Due in the next N days (`PM_NOTIFY_DAYS`), each a
+  `TASK` view of dated tasks grouped by note, then one table of next actions
+  and project deadlines (late or due soon) that no open task already restates;
+- 📁 Projects: one row per active/waiting project with priority, status, next
+  action, **Open** and **Late** task counts (tasks inside the hub only) and a
+  stale flag (`PM_STALE_DAYS`); idea/on-hold projects in a collapsed callout;
 - Waiting on others.
+
+The dashboard deliberately never lists every project task: undated tasks show
+only as counts, so open the hub (or use `list --json`) to see them.
 
 The views follow `projects.py`'s rules: a task counts when it sits in a hub
 under `PM_FOLDER` or links to one, has a `📅` date, and isn't done or
