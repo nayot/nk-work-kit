@@ -6,10 +6,12 @@
 # Defaults: AISYNC_ROOT=~/aiSpace, AISYNC_REMOTE_DIR=<name of the root folder>, remote = the first
 # of AISYNC_REMOTE, 'GDrive:' or 'google-drive:' found in `rclone listremotes`. Set them in the
 # environment or in ~/.config/nk-work-kit/.env. Part of nk-work-kit (personal-finance skill).
+# Needs rclone >= 1.66 (Ubuntu's apt package is too old).
 #
 # Usage: aisync [--dry-run|-n] [--resync] [extra rclone flags...]
 #   --dry-run, -n   show what would change, change nothing
-#   --resync        force a resync (normally automatic on first run or after an error)
+#   --resync        force a resync (normally automatic on first run or after an error);
+#                   a resync never deletes, and where a file differs the newer copy wins
 # Any other arguments are passed straight to rclone.
 
 set -uo pipefail
@@ -33,7 +35,7 @@ for arg in "$@"; do
     case "$arg" in
         -n|--dry-run) dry_run=(--dry-run) ;;
         --resync)     force_resync=1 ;;
-        -h|--help)    sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help)    awk 'NR > 1 { if (!/^#/) exit; sub(/^# ?/, ""); print }' "$0"; exit 0 ;;
         *)            extra+=("$arg") ;;
     esac
 done
@@ -84,15 +86,19 @@ run() {
     return "${PIPESTATUS[0]}"
 }
 
+# Without --resync-mode newer, a resync lets the local copy win wherever the two differ, so an
+# automatic resync after an error could overwrite newer Drive edits with an older local file.
+resync=(--resync --resync-mode newer)
+
 if [[ $force_resync -eq 1 ]]; then
-    run --resync
+    run "${resync[@]}"
     exit $?
 fi
 
 # First run (no prior listings) or any error: retry once with --resync.
 if ! run; then
     echo "aisync: bisync failed (first run or error) — retrying with --resync" >&2
-    run --resync
+    run "${resync[@]}"
     status=$?
     [[ $status -ne 0 ]] && echo "aisync: resync failed too, see $LOG" >&2
     exit $status

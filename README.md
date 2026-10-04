@@ -483,7 +483,10 @@ the spreadsheets scope, they are used instead.
 Optional sync across machines: `scripts/aisync` runs `rclone bisync` between a
 folder under `AISYNC_ROOT` (default `~/aiSpace`) and the same path on Google
 Drive; `pf.py init-folder <dir> --sync` adds Claude Code hooks that run it at
-the start and end of each session in that folder.
+the start and end of each session in that folder. It needs rclone 1.66 or
+newer: Ubuntu 24.04's apt package (1.60) is too old, so install the official
+binary (for example into `~/.local/bin`). On a first run or after an error it
+resyncs, which never deletes; where a file differs, the newer copy wins.
 
 ## License
 
