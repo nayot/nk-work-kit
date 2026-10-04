@@ -28,6 +28,9 @@ REMOTE_DIR="${AISYNC_REMOTE_DIR:-$(basename "$LOCAL_ROOT")}"
 LOG_DIR="$HOME/.local/log"
 LOG="$LOG_DIR/aisync.log"
 
+# macOS bash 3.2 treats "${arr[@]}" of an empty array as unbound under set -u,
+# so arrays are expanded as ${arr[@]+"${arr[@]}"} throughout.
+
 dry_run=()
 force_resync=0
 extra=()
@@ -39,6 +42,9 @@ for arg in "$@"; do
         *)            extra+=("$arg") ;;
     esac
 done
+
+# Hooks may run with a minimal PATH that misses Homebrew.
+command -v rclone >/dev/null || PATH="/opt/homebrew/bin:$PATH"
 
 # Pick whichever Google Drive remote is configured.
 remotes=$(rclone listremotes)
@@ -60,7 +66,7 @@ path1="$cwd/"
 path2="${remote}${REMOTE_DIR}${rel:+/$rel}/"
 
 mkdir -p "$LOG_DIR"
-echo "aisync: $path1  <->  $path2 ${dry_run[*]}"
+echo "aisync: $path1  <->  $path2 ${dry_run[*]-}"
 
 # bisync needs both sides to exist.
 if [[ ${#dry_run[@]} -eq 0 ]]; then
@@ -76,8 +82,8 @@ opts=(
     --drive-skip-gdocs
     --exclude '.git/**'
     --verbose
-    "${dry_run[@]}"
-    "${extra[@]}"
+    ${dry_run[@]+"${dry_run[@]}"}
+    ${extra[@]+"${extra[@]}"}
 )
 
 run() {
