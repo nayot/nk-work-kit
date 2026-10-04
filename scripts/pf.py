@@ -162,6 +162,14 @@ class Sheet:
         body = {'valueInputOption': 'USER_ENTERED', 'data': [{'range': k, 'values': v} for k, v in data.items()]}
         return self._ok(self.s.post(f'{API}/{self.id}/values:batchUpdate', json=body))
 
+    def ensure_rows(self, title, need):
+        """Grow a tab so row `need` exists: a values write that starts below the grid is rejected."""
+        meta = self._ok(self.s.get(f'{API}/{self.id}', params={'fields': 'sheets.properties(sheetId,title,gridProperties)'}))
+        p = next(x['properties'] for x in meta['sheets'] if x['properties']['title'] == title)
+        have = p['gridProperties']['rowCount']
+        if need > have:
+            self.batch([{'appendDimension': {'sheetId': p['sheetId'], 'dimension': 'ROWS', 'length': need - have + 500}}])
+
     def batch(self, requests_):
         return self._ok(self.s.post(f'{API}/{self.id}:batchUpdate', json={'requests': requests_}))
 
@@ -297,7 +305,11 @@ class Passwords:
             except P.PasswordNeeded:
                 continue
         for _ in range(3):
-            pw = getpass.getpass(f'Password for {path.name}: ')
+            try:
+                pw = getpass.getpass(f'Password for {path.name}: ')
+            except EOFError:
+                sys.exit(f'{path.name} is password-protected. Run the import in a terminal, '
+                         'or set PF_PDF_PASSWORD for this one run.')
             try:
                 t = P.pdf_text(path, pw)
                 self.known.append(pw)
@@ -415,6 +427,7 @@ def cmd_import(args):
     data = {}
     if new:
         start = len(sh.get('Transactions!A:A')) + 1
+        sh.ensure_rows('Transactions', start + len(new))
         data[f'Transactions!A{start}'] = new
     # card statements: upsert by (card, statement date)
     card_rows = sh.get('Card!A2:B')
