@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# aisync — rclone bisync the current directory (under a synced root) with Google Drive.
+#
+#   $AISYNC_ROOT/<sub/dir>  <->  <remote>:$AISYNC_REMOTE_DIR/<sub/dir>
+#
+# Defaults: AISYNC_ROOT=~/aiSpace, AISYNC_REMOTE_DIR=<name of the root folder>, remote = the first
+# of AISYNC_REMOTE, 'GDrive:' or 'google-drive:' found in `rclone listremotes`. Set them in the
+# environment or in ~/.config/nk-work-kit/.env. Part of nk-work-kit (personal-finance skill).
+#
+# Usage: aisync [--dry-run|-n] [--resync] [extra rclone flags...]
+#   --dry-run, -n   show what would change, change nothing
+#   --resync        force a resync (normally automatic on first run or after an error)
+# Any other arguments are passed straight to rclone.
+
+set -uo pipefail
+
+cfg="${XDG_CONFIG_HOME:-$HOME/.config}/nk-work-kit/.env"
+if [[ -f $cfg ]]; then
+    while IFS='=' read -r k v; do
+        case "$k" in AISYNC_ROOT|AISYNC_REMOTE|AISYNC_REMOTE_DIR) [[ -z ${!k:-} ]] && export "$k=${v//\"/}" ;; esac
+    done < <(grep -E '^AISYNC_(ROOT|REMOTE|REMOTE_DIR)=' "$cfg")
+fi
+LOCAL_ROOT="${AISYNC_ROOT:-$HOME/aiSpace}"
+LOCAL_ROOT="${LOCAL_ROOT/#\~/$HOME}"
+REMOTE_DIR="${AISYNC_REMOTE_DIR:-$(basename "$LOCAL_ROOT")}"
+LOG_DIR="$HOME/.local/log"
+LOG="$LOG_DIR/aisync.log"
+
+dry_run=()
+force_resync=0
+extra=()
+for arg in "$@"; do
+    case "$arg" in
+        -n|--dry-run) dry_run=(--dry-run) ;;
+        --resync)     force_resync=1 ;;
+        -h|--help)    sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        *)            extra+=("$arg") ;;
+    esac
+done
+
+# Pick whichever Google Drive remote is configured.
+remotes=$(rclone listremotes)
+if   [[ -n ${AISYNC_REMOTE:-} ]];             then remote="${AISYNC_REMOTE%:}:"
+elif grep -qx 'GDrive:' <<<"$remotes";       then remote="GDrive:"
+elif grep -qx 'google-drive:' <<<"$remotes"; then remote="google-drive:"
+else echo "aisync: no Google Drive remote found; set AISYNC_REMOTE (e.g. mydrive:) or run 'rclone config'" >&2; exit 1
+fi
+
+# Map the current directory to its place under aiSpace/.
+cwd=$(pwd -P)
+root=$(cd "$LOCAL_ROOT" 2>/dev/null && pwd -P) || { echo "aisync: $LOCAL_ROOT not found" >&2; exit 1; }
+case "$cwd/" in
+    "$root/"*) rel=${cwd#"$root"}; rel=${rel#/} ;;
+    *) echo "aisync: $cwd is not inside $LOCAL_ROOT" >&2; exit 1 ;;
+esac
+
+path1="$cwd/"
+path2="${remote}${REMOTE_DIR}${rel:+/$rel}/"
+
+mkdir -p "$LOG_DIR"
+echo "aisync: $path1  <->  $path2 ${dry_run[*]}"
+
+# bisync needs both sides to exist.
+if [[ ${#dry_run[@]} -eq 0 ]]; then
+    rclone mkdir "$path2" || exit 1
+fi
+
+opts=(
+    --create-empty-src-dirs
+    --compare size,modtime
+    --conflict-resolve newer
+    --resilient --recover
+    --max-lock 2m
+    --drive-skip-gdocs
+    --exclude '.git/**'
+    --verbose
+    "${dry_run[@]}"
+    "${extra[@]}"
+)
+
+run() {
+    echo "=== $(date '+%F %T') rclone bisync $* ===" >>"$LOG"
+    rclone bisync "$path1" "$path2" "${opts[@]}" "$@" 2>&1 | tee -a "$LOG"
+    return "${PIPESTATUS[0]}"
+}
+
+if [[ $force_resync -eq 1 ]]; then
+    run --resync
+    exit $?
+fi
+
+# First run (no prior listings) or any error: retry once with --resync.
+if ! run; then
+    echo "aisync: bisync failed (first run or error) — retrying with --resync" >&2
+    run --resync
+    status=$?
+    [[ $status -ne 0 ]] && echo "aisync: resync failed too, see $LOG" >&2
+    exit $status
+fi

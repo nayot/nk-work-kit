@@ -14,6 +14,7 @@ Engineering, Burapha University.
 | `transcribe` | Turn a meeting recording into a Markdown transcript — Thai, English or mixed |
 | `project-manager` | Track ongoing projects as notes in an **Obsidian** vault: a generated dashboard with links to the notes, updates while you work, and an optional email digest of upcoming and overdue items |
 | `business-card` | Turn a photo of a business card (นามบัตร) into a **Google Contact** (updating an existing one) and a Gmail **draft** greeting that shares your vCard link, and files the photo in your Drive **Business Cards** folder |
+| `personal-finance` | **BUU Personnel Finance**: keep income, spending, advances, budget, mortgage, tax and a retirement projection in your own private **Google Sheet**, imported from Krung Thai and UOB statements, with an Obsidian or HTML dashboard |
 
 Ask Claude in your own words, or use the slash commands below.
 
@@ -38,6 +39,9 @@ Ask Claude in your own words, or use the slash commands below.
   contacts scope, and [`rclone`](https://rclone.org/) with a Google Drive
   remote (to file the card photos) — see
   [Business cards](#business-cards).
+- For the `personal-finance` skill only: [`uv`](https://docs.astral.sh/uv/),
+  `pdftotext` (poppler) and a BUU Google account; optionally Obsidian and
+  [`rclone`](https://rclone.org/) — see [Personal finance](#personal-finance).
 
 ## Install
 
@@ -108,6 +112,7 @@ profile at `~/.local/share/buu-docnum/profile`, already outside the plugin.
 | `e-leave` | tested (cancel not yet) | should work | should work |
 | `transcribe` | tested | should work | should work |
 | `business-card` | script tested (full flow not yet) | should work | should work |
+| `personal-finance` | tested (Google sign-in step not yet) | should work | should work (`aisync` needs bash) |
 | `doc-number` | tested | should work | needs a graphical session |
 | `draft-memo` / `thai-memo` | tested | check the LibreOffice path | check the LibreOffice path |
 
@@ -438,6 +443,47 @@ python3 scripts/make_vcf.py contact.json Somchai_Jaidee.vcf
 
 The JSON fields are listed in
 [`skills/business-card/SKILL.md`](skills/business-card/SKILL.md).
+
+## Personal finance
+
+The `personal-finance` skill (**BUU Personnel Finance**) keeps your money in a
+private Google Sheet that it builds for you: transactions, budget, card
+statements, advances owed back by the university (เงินทดรองจ่าย, ค่าเล่าเรียนบุตร),
+mortgage, tax, investments and a retirement projection to your plan age.
+`scripts/pf.py` imports **Krung Thai** account and home-loan statements and
+**UOB** credit-card e-statements (PDF). Each statement is checked against the
+totals the bank printed on it before anything is written, re-importing never
+duplicates rows, and locked PDFs are opened with a password you type at import
+time — it is never stored. The dashboard (Obsidian Markdown, or `--html` for a
+browser) shows totals only.
+
+User manual: [Thai](templates/personal-finance-manual.th.md) ·
+[English](templates/personal-finance-manual.en.md).
+
+Setup, once — or just tell Claude "set up personal finance tracking":
+
+```bash
+uv run scripts/pf.py auth                                  # BUU Google sign-in, Sheets access only
+uv run scripts/pf.py setup --dob 1980-01-15 --save         # creates the sheet, saves PF_SHEET_ID
+uv run scripts/pf.py init-folder ~/Finance --save          # Statements/, Tax/, Insurance/, saves PF_DIR
+```
+
+Then each month:
+
+```bash
+uv run scripts/pf.py import --dry-run && uv run scripts/pf.py import
+uv run scripts/pf.py dashboard [--html]
+```
+
+`auth` uses the plugin's bundled OAuth client (Internal to the BUU Workspace) or
+your own `credentials.json` in `~/.config/nk-work-kit/`; the token is saved as
+`pf-token.json` there. If gcloud Application Default Credentials already carry
+the spreadsheets scope, they are used instead.
+
+Optional sync across machines: `scripts/aisync` runs `rclone bisync` between a
+folder under `AISYNC_ROOT` (default `~/aiSpace`) and the same path on Google
+Drive; `pf.py init-folder <dir> --sync` adds Claude Code hooks that run it at
+the start and end of each session in that folder.
 
 ## License
 

@@ -1,10 +1,10 @@
 {
   "name": "nk-work-kit",
-  "description": "Everyday work toolkit for BUU Faculty of Engineering: draft Thai official documents — บันทึกข้อความภายใน (internal memo) and หนังสือภายนอก (external letter) — from OTT templates to ODT/PDF; request, list or cancel document numbers in ระบบขอเลขเอกสารอัตโนมัติ; upload finished documents to BUU e-Signature; check what is still pending in eDoc and e-Signature; fetch, ลงรับ and summarise new eDoc documents with the important ones flagged; check leave balance and status in BUU e-Leave and submit or cancel leave requests with evidence attached; transcribe meeting audio (Thai/English/mixed) to Markdown via OpenRouter; and track ongoing projects in an Obsidian vault with a generated dashboard, an optional email digest of upcoming and overdue items, an optional scan of Gmail and Calendar that adds new tasks to the matching project; and turn a business-card photo into a Google Contact plus a draft greeting email, filing the photo in Google Drive.",
+  "description": "Everyday work toolkit for BUU Faculty of Engineering: draft Thai official documents — บันทึกข้อความภายใน (internal memo) and หนังสือภายนอก (external letter) — from OTT templates to ODT/PDF; request, list or cancel document numbers in ระบบขอเลขเอกสารอัตโนมัติ; upload finished documents to BUU e-Signature; check what is still pending in eDoc and e-Signature; fetch, ลงรับ and summarise new eDoc documents with the important ones flagged; check leave balance and status in BUU e-Leave and submit or cancel leave requests with evidence attached; transcribe meeting audio (Thai/English/mixed) to Markdown via OpenRouter; and track ongoing projects in an Obsidian vault with a generated dashboard, an optional email digest of upcoming and overdue items, an optional scan of Gmail and Calendar that adds new tasks to the matching project; and turn a business-card photo into a Google Contact plus a draft greeting email, filing the photo in Google Drive; and keep personal finances in a private Google Sheet (BUU Personnel Finance): import Krung Thai and UOB statements with checks against the bank's own totals, categorise spending, track advances owed back by the university, budget, mortgage, tax and a retirement projection, with an Obsidian or HTML dashboard.",
   "author": {
     "name": "Nayot Kurukitkoson",
     "email": "nayot@eng.buu.ac.th"
   },
-  "version": "2.14.0",
+  "version": "2.15.0",
   "license": "MIT"
 }
