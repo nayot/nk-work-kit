@@ -14,6 +14,7 @@ Engineering, Burapha University.
 | `transcribe` | Turn a meeting recording into a Markdown transcript — Thai, English or mixed |
 | `project-manager` | Track ongoing projects as notes in an **Obsidian** vault: a generated dashboard with links to the notes, updates while you work, and an optional email digest of upcoming and overdue items |
 | `business-card` | Turn a photo of a business card (นามบัตร) into a **Google Contact** (updating an existing one) and a Gmail **draft** greeting that shares your vCard link, and files the photo in your Drive **Business Cards** folder |
+| `triage` | One short **Act / Read / FYI** list from Gmail, **eDoc**/**e-Signature** and WhatsApp — read-only; optionally emailed to yourself on weekday mornings and afternoons |
 | `personal-finance` | **BUU Personnel Finance**: keep income, spending, advances, budget, mortgage, tax and a retirement projection in your own private **Google Sheet**, imported from Krung Thai and UOB statements, with an Obsidian or HTML dashboard |
 
 Ask Claude in your own words, or use the slash commands below.
@@ -39,6 +40,10 @@ Ask Claude in your own words, or use the slash commands below.
   contacts scope, and [`rclone`](https://rclone.org/) with a Google Drive
   remote (to file the card photos) — see
   [Business cards](#business-cards).
+- For the `triage` skill only: [`uv`](https://docs.astral.sh/uv/); each source
+  is optional — the Gmail connector, the `pending-docs` setup for eDoc, a
+  WhatsApp MCP server; for the emailed brief, the `project-manager` mail setup
+  (`PM_NOTIFY_TO`, `auth-gmail`) and bash — see [Triage](#triage).
 - For the `personal-finance` skill only: [`uv`](https://docs.astral.sh/uv/),
   `pdftotext` (poppler) and a BUU Google account; optionally Obsidian and
   [`rclone`](https://rclone.org/) — see [Personal finance](#personal-finance).
@@ -91,6 +96,8 @@ still works if you prefer it).
 | `EDOC_DIGEST_INBOX` | `edoc-digest` | Required. Comma-separated inbox names to fetch and ลงรับ — no "all" default |
 | `ESIGN_USERNAME` / `ESIGN_PASSWORD` | `pending-docs` | Optional — defaults to the `EDOC_` pair |
 | `ELEAVE_USERNAME` / `ELEAVE_PASSWORD` | `e-leave` | Optional — defaults to the `EDOC_` pair |
+| `TRIAGE_NAMES` | `triage` | Optional. Names, nicknames and role titles to watch for in WhatsApp groups; empty: inferred each run |
+| `TRIAGE_TO` | `triage` | Optional. Your own address for the emailed brief; defaults to `PM_NOTIFY_TO` |
 
 Lookup order is: real environment variables, then
 `$XDG_CONFIG_HOME/nk-work-kit/.env`, then `%APPDATA%\nk-work-kit\.env` on
@@ -111,6 +118,7 @@ profile at `~/.local/share/buu-docnum/profile`, already outside the plugin.
 | `edoc-digest` | should work | tested | should work |
 | `e-leave` | tested (cancel not yet) | should work | should work |
 | `transcribe` | tested | should work | should work |
+| `triage` | prototype tested (plugin version not yet) | should work (schedule via cron) | interactive only (the runner is bash) |
 | `business-card` | script tested (full flow not yet) | should work | should work |
 | `personal-finance` | tested (Google sign-in step not yet) | should work | should work (`aisync` needs bash) |
 | `doc-number` | tested | should work | needs a graphical session |
@@ -487,6 +495,47 @@ the start and end of each session in that folder. It needs rclone 1.66 or
 newer: Ubuntu 24.04's apt package (1.60) is too old, so install the official
 binary (for example into `~/.local/bin`). On a first run or after an error it
 resyncs, which never deletes; where a file differs, the newer copy wins.
+
+## Triage
+
+Ask "anything I need to act on?" (or `/triage`) and the `triage` skill reads
+what arrived since its last brief — or the last 24 hours — in **Gmail**,
+**eDoc**/**e-Signature** (through `check_pending.py`, so nothing is opened or
+received) and **WhatsApp**, and answers with one short list:
+
+- 🔴 **Act** — needs your reply, decision, signature or attendance, sorted by
+  deadline;
+- 🟡 **Read** — worth knowing, nothing to do;
+- ⚪ **FYI** — counts only.
+
+The same matter arriving by email, WhatsApp and eDoc is one item. Each source
+is optional and skipped with a one-line note when it isn't set up: Gmail needs
+the Gmail connector, eDoc the [pending-docs](#pending-documents) login, and
+WhatsApp a WhatsApp MCP server. In group chats only messages that name you
+count; the names come from `TRIAGE_NAMES` or are inferred from your eDoc inbox
+name, and the brief says which ones it watched.
+
+It is strictly read-only: it never replies, drafts, labels or marks anything
+read, never ลงรับs (it never uses `edoc-digest`), and never signs.
+
+**Emailed brief (optional).** Run `/triage setup`. Claude checks the sources,
+confirms your names and your own address (`PM_NOTIFY_TO`, the same mail setup
+as the [project digest](#project-manager)), sends one test brief, then installs
+a systemd user timer (`nk-triage.timer`, weekdays 07:30 and 13:30; cron on
+macOS). The timer runs `scripts/triage_run`, which calls
+`claude -p "/nk-work-kit:triage --email"` with only read tools allowed and
+every send/reply/forward/draft/label/mark-read tool denied. The brief is sent
+by `scripts/triage_send.py`, which has no recipient option: it mails only
+`TRIAGE_TO`/`PM_NOTIFY_TO`, a single address, and refuses one that isn't the
+signed-in account whenever it can tell. Briefs and logs go to
+`~/.local/state/nk-work-kit/triage/`.
+
+```bash
+uv run scripts/triage_send.py --show-config        # window + non-secret settings
+uv run scripts/triage_send.py --subject "Test" --html brief.html --dry-run
+scripts/triage_run --dry-run                        # print the headless command
+systemctl --user list-timers nk-triage.timer        # next scheduled brief
+```
 
 ## License
 

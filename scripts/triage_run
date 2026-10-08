@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# triage_run — scheduled triage: runs the triage skill headless with --email,
+# which mails the brief to the user's own address (scripts/triage_send.py).
+#
+#   <plugin-root>/scripts/triage_run [--dry-run]
+#
+# Called by the nk-triage systemd timer (or cron/launchd); see
+# skills/triage/SKILL.md. Read-only by construction: the allow list holds only
+# read tools, check_pending.py and triage_send.py, and the deny list blocks
+# every Gmail/WhatsApp tool that sends, drafts, labels or marks read, plus
+# edoc_digest.py (it ลงรับs). Keep both lists that way.
+#
+# Optional env (real env or ~/.config/nk-work-kit/.env is NOT read here):
+#   TRIAGE_CLAUDE  path to the claude CLI (default: first on PATH)
+#   TRIAGE_CWD     working directory for the run (default: $HOME)
+#   TRIAGE_MODEL   model alias for the run (default: the CLI's default)
+set -euo pipefail
+
+# Timers and cron start with a minimal PATH; claude and uv usually live here.
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export CLAUDE_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$SCRIPTS")}"
+STATE="$HOME/.local/state/nk-work-kit/triage"
+mkdir -p "$STATE"
+
+CLAUDE="${TRIAGE_CLAUDE:-$(command -v claude || true)}"
+if [ -z "$CLAUDE" ]; then
+  echo "triage_run: claude CLI not found; set TRIAGE_CLAUDE" >&2
+  exit 1
+fi
+
+ALLOW=(
+  "Skill" "Read" "Edit(~/.local/state/nk-work-kit/triage/**)"
+  "Bash(uv run */check_pending.py*)" "Bash(uv run */triage_send.py*)"
+  "Bash(date*)" "Bash(mkdir *)"
+  "mcp__claude_ai_Gmail__search_threads" "mcp__claude_ai_Gmail__get_thread"
+  "mcp__claude_ai_Gmail__get_message"
+  "mcp__whatsapp__list_chats" "mcp__whatsapp__list_messages"
+)
+DENY=(
+  "Bash(*edoc_digest*)"
+  "mcp__claude_ai_Gmail__send_message" "mcp__claude_ai_Gmail__reply" "mcp__claude_ai_Gmail__forward"
+  "mcp__claude_ai_Gmail__create_draft" "mcp__claude_ai_Gmail__update_draft" "mcp__claude_ai_Gmail__delete_draft"
+  "mcp__claude_ai_Gmail__update_message_labels" "mcp__claude_ai_Gmail__label_thread"
+  "mcp__claude_ai_Gmail__label_message" "mcp__claude_ai_Gmail__unlabel_thread"
+  "mcp__claude_ai_Gmail__unlabel_message" "mcp__claude_ai_Gmail__trash_thread"
+  "mcp__claude_ai_Gmail__trash_message" "mcp__claude_ai_Gmail__untrash_thread"
+  "mcp__claude_ai_Gmail__untrash_message" "mcp__claude_ai_Gmail__mark_thread_spam"
+  "mcp__claude_ai_Gmail__mark_message_spam" "mcp__claude_ai_Gmail__unmark_thread_spam"
+  "mcp__claude_ai_Gmail__unmark_message_spam" "mcp__claude_ai_Gmail__create_label"
+  "mcp__claude_ai_Gmail__update_label" "mcp__claude_ai_Gmail__delete_label"
+  "mcp__claude_ai_Gmail__apply_sensitive_thread_label" "mcp__claude_ai_Gmail__apply_sensitive_message_label"
+  "mcp__whatsapp__send_message" "mcp__whatsapp__send_file" "mcp__whatsapp__send_audio_message"
+  "mcp__whatsapp__send_reaction" "mcp__whatsapp__mark_messages_read"
+)
+# Headless permission checks refuse commands containing ${VAR}, so the skill
+# must write the scripts' absolute path; tell it where they are.
+HINT="Headless run. The nk-work-kit scripts are in $SCRIPTS. Write that absolute path in every Bash command (e.g. uv run $SCRIPTS/check_pending.py --json); never use \${CLAUDE_PLUGIN_ROOT}, \$HOME or any other variable or substitution: the permission check rejects them."
+CMD=("$CLAUDE" -p "/nk-work-kit:triage --email" --append-system-prompt "$HINT"
+     --allowedTools "${ALLOW[@]}" --disallowedTools "${DENY[@]}")
+if [ -n "${TRIAGE_MODEL:-}" ]; then CMD+=(--model "$TRIAGE_MODEL"); fi
+
+if [ "${1:-}" = "--dry-run" ]; then
+  printf '%q ' "${CMD[@]}"; echo
+  exit 0
+fi
+
+cd "${TRIAGE_CWD:-$HOME}"
+LOG="$STATE/run-$(date +%Y-%m).log"
+echo "=== $(date "+%Y-%m-%dT%H:%M:%S%z") triage_run" >> "$LOG"
+"${CMD[@]}" < /dev/null >> "$LOG" 2>&1
