@@ -9,7 +9,7 @@ The JSON file describes all fields for the document.
 See skills/draft-memo/SKILL.md for the full schema.
 """
 
-import json, os, shutil, sys, zipfile
+import json, os, re, shutil, sys, zipfile
 from datetime import datetime
 from lxml import etree
 
@@ -36,8 +36,12 @@ def q(ns, tag):
     return f"{{{NS[ns]}}}{tag}"
 
 
-def today_thai():
-    """Return today as a Thai Buddhist Era date string."""
+def today_thai(be_prefix=True):
+    """Return today as a Thai Buddhist Era date string.
+
+    บันทึกข้อความ dates read "๘ ตุลาคม พ.ศ. ๒๕๖๙"; a หนังสือภายนอก date drops
+    "พ.ศ." and reads "๘ ตุลาคม ๒๕๖๙" (be_prefix=False).
+    """
     months = [
         "", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน",
         "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม",
@@ -48,7 +52,12 @@ def today_thai():
     d = str(now.day).translate(THAI)
     m = months[now.month]
     y = str(now.year + 543).translate(THAI)
-    return f"{d} {m} พ.ศ. {y}"
+    return f"{d} {m} พ.ศ. {y}" if be_prefix else f"{d} {m} {y}"
+
+
+def nok_date(date):
+    """A หนังสือภายนอก date never carries "พ.ศ.": "๘ ตุลาคม พ.ศ. ๒๕๖๙" -> "๘ ตุลาคม ๒๕๖๙"."""
+    return re.sub(r"\s*พ\.\s*ศ\.\s*", " ", date).strip()
 
 
 # ── ODT package helpers ───────────────────────────────────────
@@ -410,7 +419,7 @@ def build_nok(data, work_dir):
 
     # ── วันที่ ────────────────────────────────────────────────
     date_p = para(body_text, "วันที่")
-    span(date_p, "T3", data.get("date", today_thai()))
+    span(date_p, "T3", nok_date(data.get("date") or today_thai(be_prefix=False)))
 
     # ── เรื่อง ────────────────────────────────────────────────
     re_p = para(body_text, "เรื่องเรียนอ้างถึงสิ่งที่ส่งมาด้วย")

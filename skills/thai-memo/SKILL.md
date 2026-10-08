@@ -51,6 +51,11 @@ The build script resolves templates relative to its own location automatically.
 Gregorian → Buddhist Era: add 543 to the year.  
 Use Thai digits (๐–๙) and Thai month names.
 
+- บันทึกข้อความ (`nai`): `๘ ตุลาคม พ.ศ. ๒๕๖๙`
+- หนังสือภายนอก (`nok`): `๘ ตุลาคม ๒๕๖๙` — **no พ.ศ.** in the document date. `build_memo.py` removes it if present.
+
+(Inside the body text, a date may still be written with พ.ศ.)
+
 ## Layout rules the build script already handles
 
 Do not re-implement these by hand or post-process the ODT — `build_memo.py` emits them, matching the signed หนังสือภายนอก precedent:

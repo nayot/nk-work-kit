@@ -148,6 +148,8 @@ Write `/tmp/memo_data_<timestamp>.json`:
 }
 ```
 
+**Date format differs by type:** a `nai` (บันทึกข้อความ) date keeps พ.ศ. (`๒๔ มิถุนายน พ.ศ. ๒๕๖๙`); a `nok` (หนังสือภายนอก) date **never** includes พ.ศ. (`๘ ตุลาคม ๒๕๖๙`). The build script strips a stray `พ.ศ.` from a `nok` date anyway.
+
 For `nok`, add `"from_org"`, `"from_address"`, `"enclosures"` and `"contact_box"`; omit
 `"department"` and `"phone"`. `"closing"` defaults to `ขอแสดงความนับถือ`:
 
@@ -160,7 +162,7 @@ For `nok`, add `"from_org"`, `"from_address"`, `"enclosures"` and `"contact_box"
     "๑๖๙ ถนนลงหาดบางแสน ตำบลแสนสุข",
     "อำเภอเมือง ชลบุรี ๒๐๑๓๑"
   ],
-  "date": "๒๒ กันยายน พ.ศ. ๒๕๖๙",
+  "date": "๒๒ กันยายน ๒๕๖๙",
   "subject": "ขอเชิญเข้าร่วม...",
   "to": "คุณ... ตำแหน่ง หน่วยงาน",
   "body": [
