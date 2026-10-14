@@ -1,7 +1,7 @@
 ---
 name: business-card
 description: Process a photo of a business card for Nayot — extract the contact details, save them to his Google Contacts, file the photo in his Google Drive "Business Cards" folder, and draft a greeting email that shares his vCard link. Use this skill whenever the user uploads, pastes or points at a photo that looks like a business card or name card (นามบัตร), even if they only say "here's a card", "new contact", "met this person today", "บันทึกนามบัตร", or send the image with no text at all. Also use it for photos of several cards at once, or the front and back of one card.
-version: 1.4.0
+version: 1.5.0
 ---
 
 # Business card → contact + greeting email
@@ -147,6 +147,14 @@ depend on the upload.
 `mcp__claude_ai_Gmail__create_draft`), addressed to the email on the card, and
 give him the draft link. If Gmail isn't available, or the card has no email, show
 the email text in chat so he can copy it.
+
+**Links: always send an HTML part.** Pass `htmlBody` with the vCard link as an
+explicit `<a href="https://nayot.github.io/vCard">https://nayot.github.io/vCard</a>`,
+plus the same text as the plain-text `body`. A plain-text-only draft gets its URL
+auto-linked by Gmail as a `google.com/url?q=…` redirect, which expires and can show
+a warning page. Reading the draft back with `get_draft` shows every link wrapped as
+a redirect even when the draft is clean, so after writing an explicit `href`, don't
+rewrite the draft over that read-back; let him check the link in Gmail.
 
 Language: English by default; Thai if the card is Thai-only or the person is
 clearly a Thai counterpart with a Thai-language title. Keep it short — 4 to 6
