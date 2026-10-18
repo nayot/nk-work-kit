@@ -15,6 +15,7 @@ Engineering, Burapha University.
 | `project-manager` | Track ongoing projects as notes in an **Obsidian** vault: a generated dashboard with links to the notes, updates while you work, and an optional email digest of upcoming and overdue items |
 | `business-card` | Turn a photo of a business card (นามบัตร) into a **Google Contact** (updating an existing one) and a Gmail **draft** greeting that shares your vCard link, and files the photo in your Drive **Business Cards** folder |
 | `triage` | One short **Act / Read / FYI** list from Gmail, **eDoc**/**e-Signature** and WhatsApp — read-only; optionally emailed to yourself on weekday mornings and afternoons |
+| `exam-paper` | A multiple-choice exam end to end: the **paper**, a machine-readable **bubble answer sheet**, the department's **ใบปะหน้าข้อสอบ** / **ใบนำส่ง** and **ใบเซ็นชื่อเข้าสอบ** per room, then **marking** the scanned sheets with unclear marks listed for review |
 | `personal-finance` | **BUU Personnel Finance**: keep income, spending, advances, budget, mortgage, tax and a retirement projection in your own private **Google Sheet**, imported from Krung Thai and UOB statements, with an Obsidian or HTML dashboard |
 
 Ask Claude in your own words, or use the slash commands below.
@@ -44,6 +45,9 @@ Ask Claude in your own words, or use the slash commands below.
   is optional — the Gmail connector, the `pending-docs` setup for eDoc, a
   WhatsApp MCP server; for the emailed brief, the `project-manager` mail setup
   (`PM_NOTIFY_TO`, `auth-gmail`) and bash — see [Triage](#triage).
+- For the `exam-paper` skill only: [`uv`](https://docs.astral.sh/uv/), XeLaTeX
+  (TeX Live) with the **Sarabun** font, `pdftoppm` (poppler) and LibreOffice —
+  see [Exam paper](#exam-paper).
 - For the `personal-finance` skill only: [`uv`](https://docs.astral.sh/uv/),
   `pdftotext` (poppler) and a BUU Google account; optionally Obsidian and
   [`rclone`](https://rclone.org/) — see [Personal finance](#personal-finance).
@@ -121,6 +125,7 @@ profile at `~/.local/share/buu-docnum/profile`, already outside the plugin.
 | `triage` | prototype tested (plugin version not yet) | should work (schedule via cron) | interactive only (the runner is bash) |
 | `business-card` | script tested (full flow not yet) | should work | should work |
 | `personal-finance` | tested (Google sign-in step not yet) | should work | should work (`aisync` needs bash) |
+| `exam-paper` | tested on synthetic scans (real scans not yet) | should work | should work |
 | `doc-number` | tested | should work | needs a graphical session |
 | `draft-memo` / `thai-memo` | tested | check the LibreOffice path | check the LibreOffice path |
 
@@ -495,6 +500,32 @@ the start and end of each session in that folder. It needs rclone 1.66 or
 newer: Ubuntu 24.04's apt package (1.60) is too old, so install the official
 binary (for example into `~/.local/bin`). On a first run or after an error it
 resyncs, which never deletes; where a file differs, the newer copy wins.
+
+## Exam paper
+
+The `exam-paper` skill takes a multiple-choice exam from questions to marks. One
+JSON spec per exam ([`examples/exam_spec.json`](examples/exam_spec.json)) holds
+the course, date, number of questions, choices (4 or 5), ID digits, parts and
+rooms; every script reads it. Keep the filled-in spec, questions, key, roster and
+outputs with the course, not in this repository.
+
+```bash
+python3 scripts/exam_paper.py check spec.json questions.tex key.txt   # key balance, length cues, option order
+python3 scripts/exam_paper.py build spec.json questions.tex --out out/
+python3 scripts/exam_omr_sheet.py spec.json --out out/                # bubble answer sheet (print at 100 %)
+uv run scripts/exam_omr_test.py --spec spec.json --sheet out/answer_sheet.pdf --work /tmp/omr
+python3 scripts/exam_cover_form.py spec.json --out out/               # ใบปะหน้าข้อสอบ
+python3 scripts/exam_transmittal.py spec.json --roster roster.csv --out out/   # ใบนำส่ง
+python3 scripts/exam_signin.py spec.json roster.csv --out out/        # ใบเซ็นชื่อเข้าสอบ per room
+uv run scripts/exam_omr_read.py --spec spec.json --key key.txt scans.pdf --out marks/ --roster roster.csv
+```
+
+The answer sheet fits 1–75 questions, 4–5 choices and 4–13 ID digits, and prints
+a layout code and a fingerprint row; the reader refuses a sheet that doesn't
+match the spec rather than reading it shifted. Marks it can't be sure of
+(double, faint, half-erased, unknown ID) are never guessed: they go to
+`review.csv` with a cropped image each, and your decisions go back in through
+`overrides.csv`. The blank faculty forms are in `templates/exam/`.
 
 ## Triage
 

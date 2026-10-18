@@ -1,0 +1,62 @@
+{
+  "_comment": "Spec for one exam. Every exam-paper script reads it. Keep the filled-in copy with the course, not in this repo (it carries a phone number and rooms).",
+  "course_code": "50400000",
+  "course_th": "ชื่อรายวิชา",
+  "course_en": "Course name",
+  "exam_th": "สอบปลายภาค",
+  "semester": 1,
+  "year": 2569,
+  "date_th": "วันจันทร์ที่ 1 มีนาคม 2570",
+  "time_th": "13.00–16.00 น.",
+  "duration_th": "3 ชั่วโมง",
+  "n_questions": 60,
+  "choices": "ABCD",
+  "points_per_question": 0.5,
+  "parts": [
+    {
+      "name": "ส่วนที่ 1",
+      "first": 1,
+      "last": 20,
+      "author": "อาจารย์ผู้สอน 1"
+    },
+    {
+      "name": "ส่วนที่ 2",
+      "first": 21,
+      "last": 60,
+      "author": "อาจารย์ผู้สอน 2"
+    }
+  ],
+  "id_digits": 8,
+  "id_label": "รหัสนิสิต (Student ID)",
+  "candidate_word": "นิสิต",
+  "instructors": [
+    "อาจารย์ผู้สอน 1",
+    "อาจารย์ผู้สอน 2"
+  ],
+  "submitter": "ชื่อ-สกุล ผู้นำส่ง (มีตำแหน่งวิชาการ)",
+  "submitter_short": "ชื่อย่อผู้นำส่ง",
+  "department": "ชื่อภาควิชา",
+  "contact_phone": "",
+  "contact_line": "",
+  "closed_book": true,
+  "calculator": "เครื่องคิดเลขที่ไม่มีระบบสื่อสาร",
+  "extra_rule": "ห้ามใช้ AI โทรศัพท์มือถือ และอุปกรณ์สื่อสารทุกชนิด",
+  "paper_pages": 10,
+  "copies": 170,
+  "logo": "",
+  "rooms": [
+    {
+      "room": "M-101",
+      "groups": [
+        "01"
+      ]
+    },
+    {
+      "room": "M-102",
+      "groups": [
+        "02",
+        "03"
+      ]
+    }
+  ]
+}
