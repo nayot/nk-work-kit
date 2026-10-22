@@ -310,7 +310,7 @@ official manual and has not yet been exercised.
 The `project-manager` skill wraps `scripts/projects.py` and uses an Obsidian
 vault as both database and dashboard. Each project is a **hub note** (by
 convention in `Projects/`) with `type: project` frontmatter — `status`,
-`priority`, `next_action`, `next_action_due`, `waiting_on`, `updated` — plus
+`priority`, `next_action`, `next_action_due`, `waiting_on`, `waiting_since`, `updated` — plus
 Tasks-plugin checkboxes (`- [ ] … 📅 YYYY-MM-DD`). Hub notes link to your
 existing meeting notes instead of replacing them; a task in any other note
 counts for a project when its line links the hub.
@@ -320,7 +320,9 @@ moves the next action) and regenerates `Projects/Dashboard.md`. The dashboard
 leads with **Dataview** views: loose tasks (from `Projects/To-do.md`, ranked
 by ⏫/🔽 priority, then due date), a focus list of overdue and due-in-14-days
 items, one row per project with open/late task counts and a stale flag, and
-waiting-on-others. A loose task can later be turned into a project. They are live: they update
+waiting-on-others with the working days each has waited (`projects.py waiting
+[--days N] [--json]` lists those over N, default 2; the email digest repeats
+them). A loose task can later be turned into a project. They are live: they update
 the moment a note changes, and ticking a task in the dashboard ticks it in its
 note. The views need the Dataview plugin, and the dashboard explains how to
 install it.

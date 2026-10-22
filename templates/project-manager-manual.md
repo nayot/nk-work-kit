@@ -27,7 +27,7 @@ Each ongoing project is one **hub note** in `{{FOLDER}}/`. The hub records the p
 | 📥 Loose tasks | Tasks that don't belong to a project yet, from [[{{FOLDER}}/To-do\|To-do]], grouped High / Normal / Low (⏫ / no marker / 🔽), then by due date |
 | 🎯 Focus | 🔴 Overdue and 🟡 due in the next {{DAYS}} days: dated tasks from every project and the to-do list, plus next actions and project deadlines that aren't already a task |
 | 📁 Projects | One row per active or waiting project: priority, next action, open and late task counts; ⚠️ = not updated for {{STALE_DAYS}} days. Ideas and on-hold projects sit in a collapsed table |
-| ⏳ Waiting on others | Projects that are `waiting`, or active ones that name someone to chase |
+| ⏳ Waiting on others | Who you are waiting for and for how many working days (Mon–Fri, counted from `waiting_since`, else `updated`), longest wait first; this table is refreshed when the dashboard is rebuilt. Below it, a live list of projects that are `waiting`, or active ones that name someone to chase |
 
 A project's tasks are listed on the dashboard only when they are due soon or late; open the project note to see them all.
 
@@ -51,6 +51,7 @@ The fields at the top of the note (the frontmatter):
 | `start`, `due` | Start date and project deadline (`YYYY-MM-DD`) |
 | `next_action`, `next_action_due` | The one next concrete step, and when it is due |
 | `waiting_on` | Who or what you are waiting for |
+| `waiting_since` | The date you asked or last chased (`YYYY-MM-DD`); set it whenever `waiting_on` changes. Without it, `updated` counts as the start |
 | `updated` | The last time the hub was reviewed |
 
 Below the fields come four sections: **Summary**, **Milestones / Tasks**, **Related notes** and **Log**.
@@ -132,7 +133,7 @@ After changing `PM_FOLDER`, `PM_NOTIFY_DAYS` or `PM_STALE_DAYS`, ask Claude to "
 | 📥 Loose tasks (งานทั่วไป) | งานที่ยังไม่อยู่ในโครงการใด จากโน้ต [[{{FOLDER}}/To-do\|To-do]] จัดกลุ่มตามความสำคัญ สูง / ปกติ / ต่ำ (⏫ / ไม่มีเครื่องหมาย / 🔽) แล้วเรียงตามวันกำหนดส่ง |
 | 🎯 Focus (งานเร่งด่วน) | 🔴 เลยกำหนด และ 🟡 ครบกำหนดภายใน {{DAYS}} วัน: งานที่มีกำหนดส่งจากทุกโครงการและรายการงานทั่วไป รวมถึงงานถัดไปและกำหนดส่งโครงการที่ยังไม่ได้เขียนเป็นงาน |
 | 📁 Projects (โครงการ) | หนึ่งแถวต่อหนึ่งโครงการที่ดำเนินอยู่หรือรออยู่: ความสำคัญ งานถัดไป จำนวนงานค้างและงานที่เลยกำหนด ⚠️ = ไม่ได้อัปเดตเกิน {{STALE_DAYS}} วัน โครงการสถานะ idea และ on-hold อยู่ในตารางที่ย่อไว้ |
-| ⏳ Waiting on others (รอผู้อื่น) | โครงการสถานะ `waiting` หรือโครงการที่ระบุผู้ที่ต้องติดตาม |
+| ⏳ Waiting on others (รอผู้อื่น) | กำลังรอใครและรอมาแล้วกี่วันทำการ (จันทร์–ศุกร์ นับจาก `waiting_since` หรือ `updated` หากไม่มี) เรียงจากรอนานที่สุด ตารางนี้อัปเดตเมื่อสร้างแดชบอร์ดใหม่ ด้านล่างเป็นรายการแบบสดของโครงการสถานะ `waiting` หรือโครงการที่ระบุผู้ที่ต้องติดตาม |
 
 งานของแต่ละโครงการจะแสดงบนแดชบอร์ดเฉพาะเมื่อใกล้ถึงกำหนดหรือเลยกำหนดแล้ว หากต้องการดูงานทั้งหมด ให้เปิดโน้ตหลักของโครงการนั้น
 
@@ -156,6 +157,7 @@ After changing `PM_FOLDER`, `PM_NOTIFY_DAYS` or `PM_STALE_DAYS`, ask Claude to "
 | `start`, `due` | วันเริ่มและวันกำหนดส่งโครงการ (`YYYY-MM-DD` เป็นปี ค.ศ.) |
 | `next_action`, `next_action_due` | งานถัดไปที่ต้องทำหนึ่งเรื่อง และวันกำหนด |
 | `waiting_on` | กำลังรอใครหรือรออะไร |
+| `waiting_since` | วันที่ถามหรือทวงถามครั้งล่าสุด (`YYYY-MM-DD`) ให้แก้ทุกครั้งที่เปลี่ยน `waiting_on` หากไม่ระบุ จะนับจาก `updated` |
 | `updated` | วันที่ทบทวนโน้ตหลักครั้งล่าสุด |
 
 ถัดจากช่องข้อมูลมีสี่หัวข้อ ได้แก่ **Summary** (สรุป), **Milestones / Tasks** (หมุดหมายและงาน), **Related notes** (โน้ตที่เกี่ยวข้อง) และ **Log** (บันทึกความคืบหน้า)

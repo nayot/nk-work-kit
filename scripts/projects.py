@@ -16,6 +16,7 @@ projects.py — project tracking on top of an Obsidian vault.
     uv run projects.py manual [--quiet] [--force]   write Projects/User Manual.md
     uv run projects.py digest [--days 14] [--format text|html|json]
     uv run projects.py notify [--dry-run] [--force]
+    uv run projects.py waiting [--days N] [--json]   waited on > N working days
     uv run projects.py auth-gmail [--scan]      one-time browser sign-in (gmail-oauth)
     uv run projects.py auth-gmail --url URL     second step of a headless sign-in
     uv run projects.py scan-inbox [--dry-run]   new tasks from Gmail + Calendar → hub notes
@@ -34,6 +35,7 @@ does not care. Fields it reads:
     next_action     one line
     next_action_due YYYY-MM-DD (optional)
     waiting_on      person/office (optional)
+    waiting_since   YYYY-MM-DD we asked/last chased (optional; default `updated`)
     updated         YYYY-MM-DD, last time the hub note was reviewed
 
 Dated items are Tasks-plugin checkboxes — `- [ ] text 📅 YYYY-MM-DD` — found
@@ -63,6 +65,15 @@ delete. Frontmatter (`updated:`) is never touched: an auto-added task is not a
 review. Processed message/event ids live in
 ~/.local/share/nk-work-kit/inbox-scan.json, saved only after a real run.
 Needs `auth-gmail --scan` (adds gmail.readonly + calendar.readonly).
+
+WAITING (reply aging)
+---------------------
+A project is waiting on someone when it is active or waiting and `waiting_on`
+is set (a lone dash counts as empty). Days waiting are working days (Mon–Fri,
+no public holidays) after `waiting_since` up to and including today; without
+`waiting_since`, `updated` stands in. `waiting` lists those waited on for more
+than N working days (--days, PM_WAITING_DAYS, default 2); the dashboard lists
+all of them, the digest the same over-N list as `waiting`.
 
 NOTIFY
 ------
@@ -203,6 +214,7 @@ class Project:
     next_action: str = ""
     next_action_due: str | None = None
     waiting_on: str = ""
+    waiting_since: str | None = None
     updated: str | None = None
     items: list[Item] = field(default_factory=list)
 
@@ -274,6 +286,7 @@ def scan(vault: Path) -> list[Project]:
             next_action=str(meta.get("next_action") or ""),
             next_action_due=as_date_str(meta.get("next_action_due")),
             waiting_on=str(meta.get("waiting_on") or ""),
+            waiting_since=as_date_str(meta.get("waiting_since")),
             updated=as_date_str(meta.get("updated")),
         )
         if p.next_action:
@@ -337,6 +350,40 @@ def is_stale(p: Project, stale_days: int) -> bool:
     if not p.updated:
         return True
     return (today() - dt.date.fromisoformat(p.updated)).days > stale_days
+
+
+def working_days(since: dt.date, until: dt.date) -> int:
+    """Mon–Fri days after `since`, up to and including `until` (no holidays)."""
+    n, d = 0, since
+    while d < until:
+        d += dt.timedelta(days=1)
+        n += d.weekday() < 5
+    return n
+
+
+def is_waiting(p: Project) -> bool:
+    return (p.kind == "project" and p.status in ("active", "waiting")
+            and p.waiting_on.strip().strip("-–—").strip() != "")
+
+
+def waiting_rows(vault: Path, projects: list[Project], min_days: int | None = None) -> list[dict]:
+    """Projects waiting on someone, longest wait first; with min_days, only
+    those waited on for more than min_days working days. `days` is None when
+    the note has neither waiting_since nor updated."""
+    rows = []
+    for p in filter(is_waiting, projects):
+        since = p.waiting_since or p.updated
+        days = working_days(dt.date.fromisoformat(since), today()) if since else None
+        if min_days is not None and (days is None or days <= min_days):
+            continue
+        rows.append({"project": p.name, "file": p.file, "link": obsidian_uri(vault, p.file),
+                     "waiting_on": p.waiting_on, "waiting_since": since, "days": days,
+                     "next_action_due": p.next_action_due})
+    return sorted(rows, key=lambda r: (-(r["days"] if r["days"] is not None else -1), r["project"]))
+
+
+def waiting_days_default() -> int:
+    return int(os.environ.get("PM_WAITING_DAYS", "2"))
 
 
 def rel_days(due: str) -> str:
@@ -456,7 +503,19 @@ def dataview_blocks(folder: str, days: int, stale_days: int) -> list[str]:
     ]
 
 
-def render_dashboard(vault: Path, days: int, stale_days: int) -> str:
+def waiting_table(rows: list[dict]) -> list[str]:
+    """Static reply-aging table, as of the moment the dashboard was generated."""
+    if not rows:
+        return ["_Nobody to chase._", ""]
+    cell = lambda v: str(v).replace("|", "\\|").replace("\n", " ")
+    out = ["| Project | Waiting on | Days |", "|---|---|---:|"]
+    for r in rows:
+        out.append(f"| [[{r['file'][:-3]}\\|{cell(r['project'])}]] | {cell(r['waiting_on'])} | "
+                   f"{'?' if r['days'] is None else r['days']} |")
+    return out + [""]
+
+
+def render_dashboard(vault: Path, days: int, stale_days: int, waiting: list[dict] | None = None) -> str:
     now = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
     folder = os.environ.get("PM_FOLDER", "Projects")
     have_dv = dataview_enabled(vault)
@@ -483,7 +542,14 @@ def render_dashboard(vault: Path, days: int, stale_days: int) -> str:
         " plugin does (`✅ YYYY-MM-DD`): **Settings → Dataview → Automatic task completion"
         " tracking** on, and **Use emoji shorthand for completion** on.", "",
     ]
-    out += dataview_blocks(folder, days, stale_days)
+    blocks = dataview_blocks(folder, days, stale_days)
+    if waiting is not None:
+        # Static, above the live view: Dataview can't count working days.
+        at = blocks.index("## ⏳ Waiting on others") + 2
+        blocks[at:at] = [f"Working days since `waiting_since` (or `updated`), as of {today().isoformat()};"
+                         " refreshed when the dashboard is rebuilt. Longest wait first.", "",
+                         *waiting_table(waiting)]
+    out += blocks
     return "\n".join(out)
 
 
@@ -501,7 +567,8 @@ def write_atomic(path: Path, text: str) -> None:
 
 # ---------------------------------------------------------------- digest
 
-def digest(vault: Path, projects: list[Project], days: int) -> dict:
+def digest(vault: Path, projects: list[Project], days: int, waiting_days: int | None = None) -> dict:
+    waiting_days = waiting_days_default() if waiting_days is None else waiting_days
     overdue, soon = buckets(projects, days)
     by_name = {p.name: p for p in projects}
 
@@ -512,6 +579,7 @@ def digest(vault: Path, projects: list[Project], days: int) -> dict:
     return {
         "today": today().isoformat(), "days": days,
         "overdue": [row(i) for i in overdue], "due_soon": [row(i) for i in soon],
+        "waiting_days": waiting_days, "waiting": waiting_rows(vault, projects, waiting_days),
         "dashboard_link": obsidian_uri(vault, f"{os.environ.get('PM_FOLDER', 'Projects')}/{DASHBOARD_NAME}"),
     }
 
@@ -523,6 +591,11 @@ def digest_text(d: dict) -> str:
         for it in d[key]:
             lines.append(f"  {it['due']} ({it['when']})  [{it['project']}]  {it['text']}")
         lines.append("")
+        if key == "overdue" and d["waiting"]:
+            lines.append(f"WAITING > {d['waiting_days']} WORKING DAYS ({len(d['waiting'])})")
+            for r in d["waiting"]:
+                lines.append(f"  {r['days']}d  [{r['project']}]  {r['waiting_on']}")
+            lines.append("")
     lines.append(f"Dashboard: {d['dashboard_link']}")
     return "\n".join(lines)
 
@@ -539,10 +612,23 @@ def digest_html(d: dict) -> str:
             f"<td style='padding:4px 8px'><a href='{html.escape(it['link'])}'>"
             f"{html.escape(it['text'])}</a></td></tr>" for it in items)
         return f"<table style='border-collapse:collapse;font-size:14px'>{rows}</table>"
+
+    def waiting():
+        if not d["waiting"]:
+            return ""
+        rows = "".join(
+            f"<tr><td style='white-space:nowrap;padding:4px 8px;color:#a35200'>{r['days']}d</td>"
+            f"<td style='padding:4px 8px'><a href='{html.escape(r['link'])}'>"
+            f"{html.escape(r['project'])}</a></td>"
+            f"<td style='padding:4px 8px'>{html.escape(r['waiting_on'])}</td></tr>" for r in d["waiting"])
+        return (f"<h3 style='color:#a35200'>⏳ Waiting &gt; {d['waiting_days']} working days "
+                f"({len(d['waiting'])})</h3>"
+                f"<table style='border-collapse:collapse;font-size:14px'>{rows}</table>")
     return (
         "<div style='font-family:sans-serif'>"
         f"<h2 style='margin:0 0 8px'>Projects digest — {d['today']}</h2>"
         f"<h3 style='color:#b00020'>🔴 Overdue ({len(d['overdue'])})</h3>{table(d['overdue'], '#b00020')}"
+        f"{waiting()}"
         f"<h3 style='color:#8a6d00'>🟡 Due in {d['days']} days ({len(d['due_soon'])})</h3>"
         f"{table(d['due_soon'], '#8a6d00')}"
         f"<p><a href='{html.escape(d['dashboard_link'])}'>Open the dashboard in Obsidian</a></p>"
@@ -1016,6 +1102,7 @@ due: {due}
 next_action: ""
 next_action_due:
 waiting_on: ""
+waiting_since:
 updated: {start}
 ---
 # {name}
@@ -1072,6 +1159,9 @@ def main() -> None:
     s.add_argument("--days", type=int)
     s.add_argument("--dry-run", action="store_true", help="print the message instead of sending")
     s.add_argument("--force", action="store_true", help="send even when nothing is due")
+    s = sub.add_parser("waiting", help="projects waited on for more than N working days")
+    s.add_argument("--days", type=int, help="working days (default PM_WAITING_DAYS or 2)")
+    s.add_argument("--json", action="store_true")
     s = sub.add_parser("new")
     s.add_argument("name"); s.add_argument("--area"); s.add_argument("--due")
     s.add_argument("--priority", default="normal", choices=list(PRIORITY_ORDER))
@@ -1079,6 +1169,19 @@ def main() -> None:
 
     if a.cmd == "auth-gmail":
         return cmd_auth_gmail(a.scan, a.url, a.no_browser)
+    if a.cmd == "waiting":
+        threshold = a.days if a.days is not None else waiting_days_default()
+        vault = vault_path()
+        rows = waiting_rows(vault, scan(vault), threshold)
+        if a.json:
+            print(json.dumps(rows, ensure_ascii=False, indent=2))
+        elif not rows:
+            print(f"Nothing waited on for more than {threshold} working days.")
+        else:
+            for r in rows:
+                print(f"{r['days']:3}d  {r['project']}  —  {r['waiting_on']}"
+                      f"{'  (next action due ' + r['next_action_due'] + ')' if r['next_action_due'] else ''}")
+        return
     days = getattr(a, "days", None) or int(os.environ.get("PM_NOTIFY_DAYS", "14"))
     stale_days = int(os.environ.get("PM_STALE_DAYS", "14"))
     if a.cmd == "manual":
@@ -1100,7 +1203,7 @@ def main() -> None:
                       f"{' (' + p.next_action_due + ')' if p.next_action_due else ''}")
     elif a.cmd == "dashboard":
         path = projects_dir(vault) / DASHBOARD_NAME
-        write_atomic(path, render_dashboard(vault, days, stale_days))
+        write_atomic(path, render_dashboard(vault, days, stale_days, waiting_rows(vault, projects)))
         if (manual := write_manual(vault, days, stale_days)):
             print(f"wrote {manual.relative_to(vault).as_posix()}")
         o, s_ = buckets(projects, days)

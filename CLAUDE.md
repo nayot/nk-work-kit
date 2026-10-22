@@ -35,7 +35,7 @@ uv run scripts/gcontacts.py search <q> | create contact.json [--force] | update 
 python3 scripts/make_vcf.py contact.json out.vcf
 uv run scripts/triage_send.py --show-config | --subject S --html F [--mark-run ISO] [--dry-run]
 scripts/triage_run [--dry-run]
-uv run scripts/projects.py list [--json] | dashboard | digest [--days N] | notify [--dry-run] [--force] | scan-inbox [--dry-run] | new "Name"
+uv run scripts/projects.py list [--json] | dashboard | digest [--days N] | notify [--dry-run] [--force] | waiting [--days N] [--json] | scan-inbox [--dry-run] | new "Name"
 
 uv run --with playwright==1.60.0 playwright install chromium        # one-time, for check_pending
 ```

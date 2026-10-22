@@ -116,6 +116,7 @@ due: 2026-12-15       # project deadline, optional
 next_action: "One concrete next step"
 next_action_due: 2026-10-02
 waiting_on: "Person/office — what for"
+waiting_since: 2026-09-24   # date we asked/last chased; reset when waiting_on changes
 updated: 2026-09-25   # set to today whenever you touch the note
 ---
 ```
@@ -192,6 +193,9 @@ has reviewed them.
 - lead with overdue items, then the next 14 days, then projects that are
   `waiting` or stale (`stale: true`, meaning not updated for more than
   `PM_STALE_DAYS` days);
+- for "who am I waiting on" / "what needs chasing", run `waiting [--days N]
+  [--json]`: projects whose `waiting_on` has gone unanswered for more than N
+  working days (default `PM_WAITING_DAYS`, 2), longest first;
 - link each project as `[[Hub name]]`;
 - don't paste the whole dashboard.
 
@@ -204,7 +208,8 @@ record what happened, don't editorialise. Then:
    - tick finished tasks, adding `✅ <today>`;
    - add new tasks, with `📅` only when a real date is known;
    - update the `next_action`, `next_action_due`, `waiting_on`, `status` and
-     `updated` fields;
+     `updated` fields; when `waiting_on` gets a new ask or a follow-up, set
+     `waiting_since` to the date it was sent (and clear it with `waiting_on`);
    - link the new note under **Related notes**;
    - append a dated line to **Log**.
 2. A **status** change (for example active → done or waiting) is the user's
@@ -243,7 +248,9 @@ hand-edit it.
 - 📁 Projects: one row per active/waiting project with priority, status, next
   action, **Open** and **Late** task counts (tasks inside the hub only) and a
   stale flag (`PM_STALE_DAYS`); idea/on-hold projects in a collapsed callout;
-- Waiting on others.
+- ⏳ Waiting on others: a static table (project, waiting on, working days
+  since `waiting_since`, else `updated`) as of the last rebuild, longest wait
+  first, then the live Dataview list.
 
 The dashboard deliberately never lists every project task: undated tasks show
 only as counts, so open the hub (or use `list --json`) to see them.
