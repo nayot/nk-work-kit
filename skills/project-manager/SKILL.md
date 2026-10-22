@@ -115,8 +115,12 @@ start: 2026-07-13
 due: 2026-12-15       # project deadline, optional
 next_action: "One concrete next step"
 next_action_due: 2026-10-02
-waiting_on: "Person/office — what for"
-waiting_since: 2026-09-24   # date we asked/last chased; reset when waiting_on changes
+waiting_on:                 # one entry per party we wait for; each is counted separately
+  - who: Finance office
+    what: reimbursement form
+    since: 2026-09-24       # date we asked/last chased this party
+  - Dean's office           # a plain string entry starts at waiting_since
+waiting_since: 2026-09-25   # start for entries without their own since
 updated: 2026-09-25   # set to today whenever you touch the note
 ---
 ```
@@ -154,7 +158,7 @@ type: todo
 | `dashboard` | Rewrite `Projects/Dashboard.md` (and write the manual if it is missing or outdated). Run after every change. |
 | `manual [--force]` | Write `Projects/User Manual.md`, the bilingual (English/Thai) user manual, linked both ways with the dashboard. |
 | `digest [--days N] [--format text\|html\|json]` | Overdue and upcoming items. The default window is `PM_NOTIFY_DAYS` (14). |
-| `notify [--dry-run] [--force]` | Email the digest to `PM_NOTIFY_TO`. It stays silent when nothing is due. |
+| `notify [--dry-run] [--force]` | Email the digest to `PM_NOTIFY_TO`. It stays silent when nothing is due and nobody is waited on too long. |
 | `auth-gmail [--scan]` | One-time browser sign-in for `PM_MAIL_METHOD=gmail-oauth`. `--scan` adds read-only Gmail and Calendar, for `scan-inbox`. On a machine without a browser it prints a link instead; after signing in on any device, pass the `http://localhost:1/?…` address the browser ends on to `auth-gmail --url '<address>'`. |
 | `scan-inbox [--dry-run]` | Find new tasks in Gmail and upcoming Calendar events with `claude -p`, and append them to the matching hub's `## Suggested from inbox` section. |
 | `new "Name" --area A --due D --priority P` | Create a hub note from the template, then fill it in. |
@@ -194,8 +198,9 @@ has reviewed them.
   `waiting` or stale (`stale: true`, meaning not updated for more than
   `PM_STALE_DAYS` days);
 - for "who am I waiting on" / "what needs chasing", run `waiting [--days N]
-  [--json]`: projects whose `waiting_on` has gone unanswered for more than N
-  working days (default `PM_WAITING_DAYS`, 2), longest first;
+  [--json]`: one row per party in `waiting_on` unanswered for more than N
+  working days (default `PM_WAITING_DAYS`, 2; Mon–Fri minus Thai government
+  holidays, or `PM_HOLIDAYS_FILE`), longest first;
 - link each project as `[[Hub name]]`;
 - don't paste the whole dashboard.
 
@@ -208,8 +213,13 @@ record what happened, don't editorialise. Then:
    - tick finished tasks, adding `✅ <today>`;
    - add new tasks, with `📅` only when a real date is known;
    - update the `next_action`, `next_action_due`, `waiting_on`, `status` and
-     `updated` fields; when `waiting_on` gets a new ask or a follow-up, set
-     `waiting_since` to the date it was sent (and clear it with `waiting_on`);
+     `updated` fields. For a **new ask**, write `waiting_on` in the list form,
+     one entry per party: `{who, what, since}`, with `since` the date the ask or
+     follow-up was sent. When the note still has the old single string, convert
+     it to a list as you add the new party (keep the old party's start: its
+     `since` is the note's `waiting_since`, else `updated`). Remove an entry
+     when that party answers; with no entries left, set `waiting_on: []` and
+     clear `waiting_since`;
    - link the new note under **Related notes**;
    - append a dated line to **Log**.
 2. A **status** change (for example active → done or waiting) is the user's
@@ -248,9 +258,10 @@ hand-edit it.
 - 📁 Projects: one row per active/waiting project with priority, status, next
   action, **Open** and **Late** task counts (tasks inside the hub only) and a
   stale flag (`PM_STALE_DAYS`); idea/on-hold projects in a collapsed callout;
-- ⏳ Waiting on others: a static table (project, waiting on, working days
-  since `waiting_since`, else `updated`) as of the last rebuild, longest wait
-  first, then the live Dataview list.
+- ⏳ Waiting on others: a static table, one row per party (project, waiting
+  on, what for, since, working days; the start is the party's `since`, else
+  `waiting_since`, else `updated`) as of the last rebuild, longest wait first,
+  then the live Dataview list.
 
 The dashboard deliberately never lists every project task: undated tasks show
 only as counts, so open the hub (or use `list --json`) to see them.
@@ -286,7 +297,9 @@ from `list --json` as described above.
 
 ## Email digest (optional)
 
-`notify` sends only when something is overdue or due within the window. Every
+`notify` sends only when something is overdue, due within the window, or a
+party has been waited on for more than `PM_WAITING_DAYS` working days (a long
+wait alone is enough). Every
 item links to its note through an `obsidian://open?vault=…&file=…` URL, which
 opens in the Obsidian desktop app. The mail method is `PM_MAIL_METHOD`:
 

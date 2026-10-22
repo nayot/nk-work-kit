@@ -34,8 +34,10 @@ does not care. Fields it reads:
     due             project deadline (optional)
     next_action     one line
     next_action_due YYYY-MM-DD (optional)
-    waiting_on      person/office (optional)
-    waiting_since   YYYY-MM-DD we asked/last chased (optional; default `updated`)
+    waiting_on      who we wait for (optional): a string, or a list of parties,
+                    each a string or a mapping {who, what, since}
+    waiting_since   YYYY-MM-DD we asked/last chased (optional; default `updated`);
+                    the start for string parties and mappings without `since`
     updated         YYYY-MM-DD, last time the hub note was reviewed
 
 Dated items are Tasks-plugin checkboxes — `- [ ] text 📅 YYYY-MM-DD` — found
@@ -69,16 +71,22 @@ Needs `auth-gmail --scan` (adds gmail.readonly + calendar.readonly).
 WAITING (reply aging)
 ---------------------
 A project is waiting on someone when it is active or waiting and `waiting_on`
-is set (a lone dash counts as empty). Days waiting are working days (Mon–Fri,
-no public holidays) after `waiting_since` up to and including today; without
-`waiting_since`, `updated` stands in. `waiting` lists those waited on for more
+names at least one party (a lone dash counts as empty). `waiting_on` is either
+one string (one party) or a YAML list; each list item is a string, or a mapping
+`{who, what, since}` (`who` required). Each party is counted separately: one row
+per party in `waiting`, the dashboard and the digest. A party's start is its own
+`since`, else the project's `waiting_since`, else `updated`. Days waiting are
+working days after the start up to and including today: Mon–Fri, minus Thai
+government holidays (THAI_HOLIDAYS below, 2026–2027; PM_HOLIDAYS_FILE, one ISO
+date per line, replaces that list). `waiting` lists parties waited on for more
 than N working days (--days, PM_WAITING_DAYS, default 2); the dashboard lists
 all of them, the digest the same over-N list as `waiting`.
 
 NOTIFY
 ------
-`notify` sends the digest to PM_NOTIFY_TO only when something is overdue or due
-within PM_NOTIFY_DAYS. On a quiet day it sends nothing and exits 0 (`--force`
+`notify` sends the digest to PM_NOTIFY_TO only when something is overdue, due
+within PM_NOTIFY_DAYS, or waited on for more than PM_WAITING_DAYS working days
+(a long wait alone is enough). On a quiet day it sends nothing and exits 0 (`--force`
 overrides, for testing). Three senders, chosen by PM_MAIL_METHOD (default:
 smtp if SMTP_PASSWORD is set, else gmail-oauth):
 
@@ -213,10 +221,38 @@ class Project:
     due: str | None = None
     next_action: str = ""
     next_action_due: str | None = None
-    waiting_on: str = ""
+    waiting_on: str = ""            # display form: "who — what; who"
     waiting_since: str | None = None
     updated: str | None = None
     items: list[Item] = field(default_factory=list)
+    parties: list[dict] = field(default_factory=list)   # [{who, what, since}], see parse_waiting_on
+
+
+def blank_party(v) -> bool:
+    return str(v or "").strip().strip("-–—").strip() == ""
+
+
+def parse_waiting_on(v, project_since: str | None) -> list[dict]:
+    """`waiting_on` as parties [{who, what, since}]. Accepts one string (the
+    form older notes use) or a list whose items are strings or mappings
+    {who, what, since}. A string party, or a mapping without a valid `since`,
+    starts at the project's waiting_since (None here: the caller falls back to
+    `updated`). Blank and dash-only parties, and mappings without `who`, are dropped."""
+    items = v if isinstance(v, list) else [v]
+    out = []
+    for it in items:
+        if isinstance(it, dict):
+            who, what, since = it.get("who"), it.get("what"), as_date_str(it.get("since")) or project_since
+        else:
+            who, what, since = it, None, project_since
+        if isinstance(who, (dict, list)) or blank_party(who):
+            continue
+        out.append({"who": str(who).strip(), "what": "" if blank_party(what) else str(what).strip(), "since": since})
+    return out
+
+
+def party_label(party: dict) -> str:
+    return f"{party['who']} — {party['what']}" if party["what"] else party["who"]
 
 
 def as_date_str(v) -> str | None:
@@ -285,10 +321,11 @@ def scan(vault: Path) -> list[Project]:
             due=as_date_str(meta.get("due")),
             next_action=str(meta.get("next_action") or ""),
             next_action_due=as_date_str(meta.get("next_action_due")),
-            waiting_on=str(meta.get("waiting_on") or ""),
             waiting_since=as_date_str(meta.get("waiting_since")),
             updated=as_date_str(meta.get("updated")),
         )
+        p.parties = parse_waiting_on(meta.get("waiting_on"), p.waiting_since)
+        p.waiting_on = "; ".join(map(party_label, p.parties))
         if p.next_action:
             p.items.append(Item(name, "next_action", p.next_action, p.next_action_due, p.file))
         if p.due:
@@ -352,34 +389,112 @@ def is_stale(p: Project, stale_days: int) -> bool:
     return (today() - dt.date.fromisoformat(p.updated)).days > stale_days
 
 
-def working_days(since: dt.date, until: dt.date) -> int:
-    """Mon–Fri days after `since`, up to and including `until` (no holidays)."""
+# Thai government holidays (วันหยุดราชการ) that fall on Mon–Fri, substitution days
+# (วันหยุดชดเชย) and Cabinet special holidays included. Weekend holidays are left
+# out: weekends never count anyway. Sources, checked 23.10.2026 (the Cabinet
+# Secretariat's own list, soc.go.th, could not be fetched):
+#   2026 (2569): InfoQuest, "วันหยุดประจำปี 2569", https://www.infoquest.co.th/?p=64932,
+#     and The Thaiger, https://thethaiger.com/th/news/1480775/ (Cabinet list, special
+#     holiday 2 Jan). Labour Day (1 May) is a bank holiday, not a government one.
+#     16 Oct 2026 was a Cabinet special holiday for Bangkok only (IMF/World Bank
+#     meetings; https://thestandard.co/life/cabinet-16-oct-69-special-holiday/),
+#     so it is not listed.
+#   2027 (2570): InfoQuest, "วันหยุด 2570", https://www.infoquest.co.th/holidays/year-2570,
+#     and Time Out Bangkok, https://www.timeout.com/bangkok/th/news/thailand-public-holidays-100226.
+#     Not yet announced when checked: the Royal Ploughing Ceremony (พืชมงคล, government
+#     only). Unconfirmed: a government-only substitute on Tue 20 Jul for Asalha Bucha
+#     (Sun 18 Jul); the sources list Mon 19 Jul (Khao Phansa) as the substitute. The
+#     Labour Day substitute (Mon 3 May) is a bank holiday. Add such dates through
+#     PM_HOLIDAYS_FILE once they are announced.
+THAI_HOLIDAYS = frozenset(dt.date.fromisoformat(d) for d in (
+    # 2026
+    "2026-01-01", "2026-01-02",                  # New Year; Cabinet special holiday
+    "2026-03-03",                                # Makha Bucha
+    "2026-04-06",                                # Chakri Day
+    "2026-04-13", "2026-04-14", "2026-04-15",    # Songkran
+    "2026-05-04",                                # Coronation Day
+    "2026-05-13",                                # Royal Ploughing Ceremony (government only)
+    "2026-06-01",                                # substitute: Visakha Bucha (Sun 31 May)
+    "2026-06-03",                                # Queen Suthida's Birthday
+    "2026-07-28",                                # King's Birthday
+    "2026-07-29", "2026-07-30",                  # Asalha Bucha; Khao Phansa (government only)
+    "2026-08-12",                                # Mother's Day
+    "2026-10-13",                                # King Bhumibol Memorial Day
+    "2026-10-23",                                # Chulalongkorn Day
+    "2026-12-07",                                # substitute: King Bhumibol's Birthday (Sat 5 Dec)
+    "2026-12-10",                                # Constitution Day
+    "2026-12-31",                                # New Year's Eve
+    # 2027
+    "2027-01-01",                                # New Year
+    "2027-02-22",                                # substitute: Makha Bucha (Sun 21 Feb)
+    "2027-04-06",                                # Chakri Day
+    "2027-04-13", "2027-04-14", "2027-04-15",    # Songkran
+    "2027-05-04",                                # Coronation Day
+    "2027-05-20",                                # Visakha Bucha
+    "2027-06-03",                                # Queen Suthida's Birthday
+    "2027-07-19",                                # Khao Phansa / substitute: Asalha Bucha (Sun 18 Jul)
+    "2027-07-28",                                # King's Birthday
+    "2027-08-12",                                # Mother's Day
+    "2027-10-13",                                # King Bhumibol Memorial Day
+    "2027-10-25",                                # substitute: Chulalongkorn Day (Sat 23 Oct)
+    "2027-12-06",                                # substitute: King Bhumibol's Birthday (Sun 5 Dec)
+    "2027-12-10",                                # Constitution Day
+    "2027-12-31",                                # New Year's Eve
+))
+
+
+def holidays() -> frozenset[dt.date]:
+    """THAI_HOLIDAYS, or the dates in PM_HOLIDAYS_FILE (one YYYY-MM-DD per line;
+    blank lines and text after # ignored), which replace the built-in list."""
+    f = os.environ.get("PM_HOLIDAYS_FILE", "").strip()
+    if not f:
+        return THAI_HOLIDAYS
+    path = Path(f).expanduser()
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as e:
+        sys.exit(f"PM_HOLIDAYS_FILE: cannot read {path}: {e}")
+    out = set()
+    for n, line in enumerate(lines, 1):
+        if not (s := line.split("#", 1)[0].strip()):
+            continue
+        try:
+            out.add(dt.date.fromisoformat(s))
+        except ValueError:
+            sys.exit(f"PM_HOLIDAYS_FILE: {path}:{n}: not a YYYY-MM-DD date: {s!r}")
+    return frozenset(out)
+
+
+def working_days(since: dt.date, until: dt.date, off: frozenset[dt.date] | None = None) -> int:
+    """Mon–Fri days after `since`, up to and including `until`, that are not holidays."""
+    off = holidays() if off is None else off
     n, d = 0, since
     while d < until:
         d += dt.timedelta(days=1)
-        n += d.weekday() < 5
+        n += d.weekday() < 5 and d not in off
     return n
 
 
 def is_waiting(p: Project) -> bool:
-    return (p.kind == "project" and p.status in ("active", "waiting")
-            and p.waiting_on.strip().strip("-–—").strip() != "")
+    return p.kind == "project" and p.status in ("active", "waiting") and bool(p.parties)
 
 
 def waiting_rows(vault: Path, projects: list[Project], min_days: int | None = None) -> list[dict]:
-    """Projects waiting on someone, longest wait first; with min_days, only
-    those waited on for more than min_days working days. `days` is None when
-    the note has neither waiting_since nor updated."""
-    rows = []
+    """One row per party waited on (a project waiting on two parties gives two
+    rows), longest wait first; with min_days, only parties waited on for more
+    than min_days working days. `days` is None when neither the party, the
+    project's waiting_since nor `updated` gives a start date."""
+    rows, off = [], holidays()
     for p in filter(is_waiting, projects):
-        since = p.waiting_since or p.updated
-        days = working_days(dt.date.fromisoformat(since), today()) if since else None
-        if min_days is not None and (days is None or days <= min_days):
-            continue
-        rows.append({"project": p.name, "file": p.file, "link": obsidian_uri(vault, p.file),
-                     "waiting_on": p.waiting_on, "waiting_since": since, "days": days,
-                     "next_action_due": p.next_action_due})
-    return sorted(rows, key=lambda r: (-(r["days"] if r["days"] is not None else -1), r["project"]))
+        for party in p.parties:
+            since = party["since"] or p.updated
+            days = working_days(dt.date.fromisoformat(since), today(), off) if since else None
+            if min_days is not None and (days is None or days <= min_days):
+                continue
+            rows.append({"project": p.name, "file": p.file, "link": obsidian_uri(vault, p.file),
+                         "waiting_on": party["who"], "what": party["what"], "label": party_label(party),
+                         "waiting_since": since, "days": days, "next_action_due": p.next_action_due})
+    return sorted(rows, key=lambda r: (-(r["days"] if r["days"] is not None else -1), r["project"], r["waiting_on"]))
 
 
 def waiting_days_default() -> int:
@@ -508,10 +623,10 @@ def waiting_table(rows: list[dict]) -> list[str]:
     if not rows:
         return ["_Nobody to chase._", ""]
     cell = lambda v: str(v).replace("|", "\\|").replace("\n", " ")
-    out = ["| Project | Waiting on | Days |", "|---|---|---:|"]
+    out = ["| Project | Waiting on | For | Since | Days |", "|---|---|---|---|---:|"]
     for r in rows:
-        out.append(f"| [[{r['file'][:-3]}\\|{cell(r['project'])}]] | {cell(r['waiting_on'])} | "
-                   f"{'?' if r['days'] is None else r['days']} |")
+        out.append(f"| [[{r['file'][:-3]}\\|{cell(r['project'])}]] | {cell(r['waiting_on'])} | {cell(r['what'])} | "
+                   f"{r['waiting_since'] or '?'} | {'?' if r['days'] is None else r['days']} |")
     return out + [""]
 
 
@@ -546,8 +661,9 @@ def render_dashboard(vault: Path, days: int, stale_days: int, waiting: list[dict
     if waiting is not None:
         # Static, above the live view: Dataview can't count working days.
         at = blocks.index("## ⏳ Waiting on others") + 2
-        blocks[at:at] = [f"Working days since `waiting_since` (or `updated`), as of {today().isoformat()};"
-                         " refreshed when the dashboard is rebuilt. Longest wait first.", "",
+        blocks[at:at] = [f"One row per party waited on. Working days (Mon–Fri, Thai government holidays"
+                         f" excluded) since the ask, as of {today().isoformat()}; refreshed when the dashboard"
+                         " is rebuilt. Longest wait first.", "",
                          *waiting_table(waiting)]
     out += blocks
     return "\n".join(out)
@@ -594,7 +710,7 @@ def digest_text(d: dict) -> str:
         if key == "overdue" and d["waiting"]:
             lines.append(f"WAITING > {d['waiting_days']} WORKING DAYS ({len(d['waiting'])})")
             for r in d["waiting"]:
-                lines.append(f"  {r['days']}d  [{r['project']}]  {r['waiting_on']}")
+                lines.append(f"  {r['days']}d  [{r['project']}]  {r['label']}")
             lines.append("")
     lines.append(f"Dashboard: {d['dashboard_link']}")
     return "\n".join(lines)
@@ -620,7 +736,7 @@ def digest_html(d: dict) -> str:
             f"<tr><td style='white-space:nowrap;padding:4px 8px;color:#a35200'>{r['days']}d</td>"
             f"<td style='padding:4px 8px'><a href='{html.escape(r['link'])}'>"
             f"{html.escape(r['project'])}</a></td>"
-            f"<td style='padding:4px 8px'>{html.escape(r['waiting_on'])}</td></tr>" for r in d["waiting"])
+            f"<td style='padding:4px 8px'>{html.escape(r['label'])}</td></tr>" for r in d["waiting"])
         return (f"<h3 style='color:#a35200'>⏳ Waiting &gt; {d['waiting_days']} working days "
                 f"({len(d['waiting'])})</h3>"
                 f"<table style='border-collapse:collapse;font-size:14px'>{rows}</table>")
@@ -639,9 +755,10 @@ def digest_html(d: dict) -> str:
 # ---------------------------------------------------------------- sending
 
 def build_message(d: dict, to: str, sender: str) -> EmailMessage:
-    n_over, n_soon = len(d["overdue"]), len(d["due_soon"])
+    n_over, n_soon, n_wait = len(d["overdue"]), len(d["due_soon"]), len(d["waiting"])
     msg = EmailMessage()
-    msg["Subject"] = f"[Projects] {n_over} overdue, {n_soon} due soon — {d['today']}"
+    msg["Subject"] = (f"[Projects] {n_over} overdue, {n_soon} due soon"
+                      f"{f', {n_wait} waiting' if n_wait else ''} — {d['today']}")
     msg["From"] = sender
     msg["To"] = to
     msg.set_content(digest_text(d))
@@ -1101,7 +1218,7 @@ start: {start}
 due: {due}
 next_action: ""
 next_action_due:
-waiting_on: ""
+waiting_on: []
 waiting_since:
 updated: {start}
 ---
@@ -1159,7 +1276,7 @@ def main() -> None:
     s.add_argument("--days", type=int)
     s.add_argument("--dry-run", action="store_true", help="print the message instead of sending")
     s.add_argument("--force", action="store_true", help="send even when nothing is due")
-    s = sub.add_parser("waiting", help="projects waited on for more than N working days")
+    s = sub.add_parser("waiting", help="parties waited on for more than N working days (one row each)")
     s.add_argument("--days", type=int, help="working days (default PM_WAITING_DAYS or 2)")
     s.add_argument("--json", action="store_true")
     s = sub.add_parser("new")
@@ -1179,7 +1296,7 @@ def main() -> None:
             print(f"Nothing waited on for more than {threshold} working days.")
         else:
             for r in rows:
-                print(f"{r['days']:3}d  {r['project']}  —  {r['waiting_on']}"
+                print(f"{r['days']:3}d  {r['project']}  —  {r['label']}  (since {r['waiting_since']})"
                       f"{'  (next action due ' + r['next_action_due'] + ')' if r['next_action_due'] else ''}")
         return
     days = getattr(a, "days", None) or int(os.environ.get("PM_NOTIFY_DAYS", "14"))
@@ -1217,8 +1334,9 @@ def main() -> None:
                "html": lambda: digest_html(d), "text": lambda: digest_text(d)}[a.format]())
     elif a.cmd == "notify":
         d = digest(vault, projects, days)
-        if not (d["overdue"] or d["due_soon"]) and not a.force:
-            print("Nothing overdue or due soon — no email sent.")
+        if not (d["overdue"] or d["due_soon"] or d["waiting"]) and not a.force:
+            print(f"Nothing overdue, due soon or waited on for more than {d['waiting_days']} working days"
+                  " — no email sent.")
             return
         to = os.environ.get("PM_NOTIFY_TO", "").strip()
         if not to:

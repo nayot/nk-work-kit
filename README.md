@@ -320,9 +320,10 @@ moves the next action) and regenerates `Projects/Dashboard.md`. The dashboard
 leads with **Dataview** views: loose tasks (from `Projects/To-do.md`, ranked
 by ⏫/🔽 priority, then due date), a focus list of overdue and due-in-14-days
 items, one row per project with open/late task counts and a stale flag, and
-waiting-on-others with the working days each has waited (`projects.py waiting
-[--days N] [--json]` lists those over N, default 2; the email digest repeats
-them). A loose task can later be turned into a project. They are live: they update
+waiting-on-others, one row per party with the working days each has waited
+(Mon–Fri minus Thai government holidays; `projects.py waiting [--days N] [--json]`
+lists those over N, default 2; the email digest repeats them). `waiting_on` is
+one string or a YAML list of parties, each a string or `{who, what, since}`. A loose task can later be turned into a project. They are live: they update
 the moment a note changes, and ticking a task in the dashboard ticks it in its
 note. The views need the Dataview plugin, and the dashboard explains how to
 install it.
@@ -364,7 +365,8 @@ section. Run `projects.py auth-gmail --scan` once to grant read-only Gmail and
 Calendar access. Email content is sent to Anthropic through Claude Code.
 
 **Email digest (optional).** `notify` emails `PM_NOTIFY_TO` only when something
-is overdue or due within `PM_NOTIFY_DAYS`; each item links to its note with an
+is overdue or due within `PM_NOTIFY_DAYS`, or someone has been waited on for more
+than `PM_WAITING_DAYS` working days; each item links to its note with an
 `obsidian://` URL. Send via the Gmail API (`PM_MAIL_METHOD=gmail-oauth`, the
 default): run `projects.py auth-gmail` once and sign in with your BUU Google
 account. No Google Cloud setup is needed: the plugin ships its own OAuth client

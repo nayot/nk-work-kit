@@ -27,7 +27,7 @@ Each ongoing project is one **hub note** in `{{FOLDER}}/`. The hub records the p
 | 📥 Loose tasks | Tasks that don't belong to a project yet, from [[{{FOLDER}}/To-do\|To-do]], grouped High / Normal / Low (⏫ / no marker / 🔽), then by due date |
 | 🎯 Focus | 🔴 Overdue and 🟡 due in the next {{DAYS}} days: dated tasks from every project and the to-do list, plus next actions and project deadlines that aren't already a task |
 | 📁 Projects | One row per active or waiting project: priority, next action, open and late task counts; ⚠️ = not updated for {{STALE_DAYS}} days. Ideas and on-hold projects sit in a collapsed table |
-| ⏳ Waiting on others | Who you are waiting for and for how many working days (Mon–Fri, counted from `waiting_since`, else `updated`), longest wait first; this table is refreshed when the dashboard is rebuilt. Below it, a live list of projects that are `waiting`, or active ones that name someone to chase |
+| ⏳ Waiting on others | One row per person or office you are waiting for, with what for, since when and for how many working days (Mon–Fri, Thai government holidays excluded), longest wait first; this table is refreshed when the dashboard is rebuilt. Below it, a live list of projects that are `waiting`, or active ones that name someone to chase |
 
 A project's tasks are listed on the dashboard only when they are due soon or late; open the project note to see them all.
 
@@ -50,9 +50,22 @@ The fields at the top of the note (the frontmatter):
 | `area` | Free text for grouping, such as `Quality` or `Industry` |
 | `start`, `due` | Start date and project deadline (`YYYY-MM-DD`) |
 | `next_action`, `next_action_due` | The one next concrete step, and when it is due |
-| `waiting_on` | Who or what you are waiting for |
-| `waiting_since` | The date you asked or last chased (`YYYY-MM-DD`); set it whenever `waiting_on` changes. Without it, `updated` counts as the start |
+| `waiting_on` | Who you are waiting for. One name, or a list with one entry per person or office (see below), so that each is counted separately |
+| `waiting_since` | The date you asked or last chased (`YYYY-MM-DD`). It applies to entries without their own `since`; set it whenever such an entry changes. Without it, `updated` counts as the start |
 | `updated` | The last time the hub was reviewed |
+
+**Waiting on two or more people:** write `waiting_on` as a list. An entry is a name, or `who` with optional `what` and `since` (the date you asked that person):
+
+```yaml
+waiting_on:
+  - who: Finance office
+    what: reimbursement form
+    since: 2026-10-16
+  - Dean's office            # starts at waiting_since
+waiting_since: 2026-10-20
+```
+
+The older single form, `waiting_on: "Finance office — reimbursement form"`, still works and counts as one entry.
 
 Below the fields come four sections: **Summary**, **Milestones / Tasks**, **Related notes** and **Log**.
 
@@ -88,7 +101,7 @@ Claude only puts real dates in `📅` or `*_due` fields, taken from you, an emai
 
 ### Email digest (optional)
 
-On weekday mornings, an email lists what is overdue or due within {{DAYS}} days. Nothing is sent on a quiet day, and each item links back to its note in Obsidian. To turn it on, ask Claude to "set up the project digest".
+On weekday mornings, an email lists what is overdue or due within {{DAYS}} days, and whoever you have waited on for more than `PM_WAITING_DAYS` working days (default 2). A long wait alone is enough for the email to go out. Nothing is sent on a quiet day, and each item links back to its note in Obsidian. To turn it on, ask Claude to "set up the project digest".
 
 ### Tasks from email and calendar (optional)
 
@@ -108,6 +121,8 @@ These go in `~/.config/nk-work-kit/.env`:
 | `PM_MAIL_METHOD` | `gmail-oauth` | How the digest is sent |
 | `PM_SCAN_MIN_CONFIDENCE` | `high` | Inbox scan: add only tasks at least this certain (`high`, `medium`, `low`) |
 | `PM_SCAN_DAYS` | `14` | Inbox scan: how far ahead to read the calendar |
+| `PM_WAITING_DAYS` | `2` | Working days of waiting before someone appears in the digest |
+| `PM_HOLIDAYS_FILE` | — | A file of holidays (one `YYYY-MM-DD` per line) that replaces the built-in Thai government holidays for 2026–2027 |
 
 After changing `PM_FOLDER`, `PM_NOTIFY_DAYS` or `PM_STALE_DAYS`, ask Claude to "update the dashboard".
 
@@ -133,7 +148,7 @@ After changing `PM_FOLDER`, `PM_NOTIFY_DAYS` or `PM_STALE_DAYS`, ask Claude to "
 | 📥 Loose tasks (งานทั่วไป) | งานที่ยังไม่อยู่ในโครงการใด จากโน้ต [[{{FOLDER}}/To-do\|To-do]] จัดกลุ่มตามความสำคัญ สูง / ปกติ / ต่ำ (⏫ / ไม่มีเครื่องหมาย / 🔽) แล้วเรียงตามวันกำหนดส่ง |
 | 🎯 Focus (งานเร่งด่วน) | 🔴 เลยกำหนด และ 🟡 ครบกำหนดภายใน {{DAYS}} วัน: งานที่มีกำหนดส่งจากทุกโครงการและรายการงานทั่วไป รวมถึงงานถัดไปและกำหนดส่งโครงการที่ยังไม่ได้เขียนเป็นงาน |
 | 📁 Projects (โครงการ) | หนึ่งแถวต่อหนึ่งโครงการที่ดำเนินอยู่หรือรออยู่: ความสำคัญ งานถัดไป จำนวนงานค้างและงานที่เลยกำหนด ⚠️ = ไม่ได้อัปเดตเกิน {{STALE_DAYS}} วัน โครงการสถานะ idea และ on-hold อยู่ในตารางที่ย่อไว้ |
-| ⏳ Waiting on others (รอผู้อื่น) | กำลังรอใครและรอมาแล้วกี่วันทำการ (จันทร์–ศุกร์ นับจาก `waiting_since` หรือ `updated` หากไม่มี) เรียงจากรอนานที่สุด ตารางนี้อัปเดตเมื่อสร้างแดชบอร์ดใหม่ ด้านล่างเป็นรายการแบบสดของโครงการสถานะ `waiting` หรือโครงการที่ระบุผู้ที่ต้องติดตาม |
+| ⏳ Waiting on others (รอผู้อื่น) | หนึ่งแถวต่อบุคคลหรือหน่วยงานที่กำลังรอ พร้อมเรื่องที่รอ วันที่เริ่มรอ และจำนวนวันทำการที่รอมาแล้ว (จันทร์–ศุกร์ ไม่นับวันหยุดราชการ) เรียงจากรอนานที่สุด ตารางนี้อัปเดตเมื่อสร้างแดชบอร์ดใหม่ ด้านล่างเป็นรายการแบบสดของโครงการสถานะ `waiting` หรือโครงการที่ระบุผู้ที่ต้องติดตาม |
 
 งานของแต่ละโครงการจะแสดงบนแดชบอร์ดเฉพาะเมื่อใกล้ถึงกำหนดหรือเลยกำหนดแล้ว หากต้องการดูงานทั้งหมด ให้เปิดโน้ตหลักของโครงการนั้น
 
@@ -156,9 +171,22 @@ After changing `PM_FOLDER`, `PM_NOTIFY_DAYS` or `PM_STALE_DAYS`, ask Claude to "
 | `area` | กลุ่มงาน (พิมพ์อิสระ) เช่น `Quality`, `Industry` |
 | `start`, `due` | วันเริ่มและวันกำหนดส่งโครงการ (`YYYY-MM-DD` เป็นปี ค.ศ.) |
 | `next_action`, `next_action_due` | งานถัดไปที่ต้องทำหนึ่งเรื่อง และวันกำหนด |
-| `waiting_on` | กำลังรอใครหรือรออะไร |
-| `waiting_since` | วันที่ถามหรือทวงถามครั้งล่าสุด (`YYYY-MM-DD`) ให้แก้ทุกครั้งที่เปลี่ยน `waiting_on` หากไม่ระบุ จะนับจาก `updated` |
+| `waiting_on` | กำลังรอใคร ระบุชื่อเดียว หรือเขียนเป็นรายการ หนึ่งรายการต่อบุคคลหรือหน่วยงาน (ดูด้านล่าง) เพื่อให้นับแยกกัน |
+| `waiting_since` | วันที่ถามหรือทวงถามครั้งล่าสุด (`YYYY-MM-DD`) ใช้กับรายการที่ไม่มี `since` ของตัวเอง ให้แก้ทุกครั้งที่รายการเหล่านั้นเปลี่ยน หากไม่ระบุ จะนับจาก `updated` |
 | `updated` | วันที่ทบทวนโน้ตหลักครั้งล่าสุด |
+
+**รอหลายคนพร้อมกัน:** เขียน `waiting_on` เป็นรายการ แต่ละรายการเป็นชื่อ หรือเป็น `who` พร้อม `what` (เรื่องที่รอ) และ `since` (วันที่ถามคนนั้น) ซึ่งไม่บังคับ
+
+```yaml
+waiting_on:
+  - who: กองคลัง
+    what: แบบฟอร์มเบิกเงิน
+    since: 2026-10-16
+  - สำนักงานคณบดี            # นับจาก waiting_since
+waiting_since: 2026-10-20
+```
+
+รูปแบบเดิมแบบข้อความเดียว เช่น `waiting_on: "กองคลัง — แบบฟอร์มเบิกเงิน"` ยังใช้ได้ และนับเป็นหนึ่งรายการ
 
 ถัดจากช่องข้อมูลมีสี่หัวข้อ ได้แก่ **Summary** (สรุป), **Milestones / Tasks** (หมุดหมายและงาน), **Related notes** (โน้ตที่เกี่ยวข้อง) และ **Log** (บันทึกความคืบหน้า)
 
@@ -194,7 +222,7 @@ Claude จะใส่วันที่ใน `📅` หรือช่อง `
 
 ### อีเมลสรุป (ไม่บังคับ)
 
-ทุกเช้าวันทำการ ระบบจะส่งอีเมลสรุปงานที่เลยกำหนดหรือครบกำหนดภายใน {{DAYS}} วัน วันที่ไม่มีงานค้างจะไม่ส่ง แต่ละรายการในอีเมลมีลิงก์กลับไปยังโน้ตใน Obsidian หากต้องการเปิดใช้ ให้บอก Claude ว่า "ตั้งค่าอีเมลสรุปโครงการ"
+ทุกเช้าวันทำการ ระบบจะส่งอีเมลสรุปงานที่เลยกำหนดหรือครบกำหนดภายใน {{DAYS}} วัน และผู้ที่คุณรอมาเกิน `PM_WAITING_DAYS` วันทำการ (ค่าเริ่มต้น 2) แม้มีเพียงรายการที่รอนานก็จะส่งอีเมล วันที่ไม่มีงานค้างจะไม่ส่ง แต่ละรายการในอีเมลมีลิงก์กลับไปยังโน้ตใน Obsidian หากต้องการเปิดใช้ ให้บอก Claude ว่า "ตั้งค่าอีเมลสรุปโครงการ"
 
 ### งานจากอีเมลและปฏิทิน (ไม่บังคับ)
 
@@ -214,6 +242,8 @@ Claude จะใส่วันที่ใน `📅` หรือช่อง `
 | `PM_MAIL_METHOD` | `gmail-oauth` | วิธีส่งอีเมล |
 | `PM_SCAN_MIN_CONFIDENCE` | `high` | สแกนอีเมล: เพิ่มเฉพาะงานที่มั่นใจอย่างน้อยระดับนี้ (`high`, `medium`, `low`) |
 | `PM_SCAN_DAYS` | `14` | สแกนอีเมล: อ่านปฏิทินล่วงหน้ากี่วัน |
+| `PM_WAITING_DAYS` | `2` | จำนวนวันทำการที่รอ ก่อนขึ้นในอีเมลสรุป |
+| `PM_HOLIDAYS_FILE` | — | ไฟล์วันหยุด (หนึ่งวันที่ `YYYY-MM-DD` ต่อบรรทัด) ใช้แทนวันหยุดราชการไทยปี 2026–2027 ที่มีอยู่ในสคริปต์ |
 
 หลังแก้ `PM_FOLDER`, `PM_NOTIFY_DAYS` หรือ `PM_STALE_DAYS` ให้บอก Claude ว่า "อัปเดตแดชบอร์ด"
 
