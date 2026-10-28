@@ -16,6 +16,7 @@ Engineering, Burapha University.
 | `business-card` | Turn a photo of a business card (นามบัตร) into a **Google Contact** (updating an existing one) and a Gmail **draft** greeting that shares your vCard link, and files the photo in your Drive **Business Cards** folder |
 | `triage` | One short **Act / Read / FYI** list from Gmail, **eDoc**/**e-Signature** and WhatsApp — read-only; optionally emailed to yourself on weekday mornings and afternoons |
 | `exam-paper` | A multiple-choice exam end to end: the **paper**, a machine-readable **bubble answer sheet**, the department's **ใบปะหน้าข้อสอบ** / **ใบนำส่ง** and **ใบเซ็นชื่อเข้าสอบ** per room, then **marking** the scanned sheets with unclear marks listed for review |
+| `pay-sheet` | A payment request (ค่าตอบแทนกรรมการ, วิทยากร …) into a one-page sheet with a **PromptPay QR per payee**, amount pre-filled, that becomes the **payment record**: each transfer slip read, filed and ticked with the bank's reference number, the slip images appended, and the reply to the requester drafted |
 | `personal-finance` | **BUU Personnel Finance**: keep income, spending, advances, budget, mortgage, tax and a retirement projection in your own private **Google Sheet**, imported from Krung Thai and UOB statements, with an Obsidian or HTML dashboard |
 
 Ask Claude in your own words, or use the slash commands below.
@@ -48,6 +49,8 @@ Ask Claude in your own words, or use the slash commands below.
 - For the `exam-paper` skill only: [`uv`](https://docs.astral.sh/uv/), XeLaTeX
   (TeX Live) with the **Sarabun** font, `pdftoppm` (poppler) and LibreOffice —
   see [Exam paper](#exam-paper).
+- For the `pay-sheet` skill only: XeLaTeX (TeX Live) with the **Sarabun** font and
+  `qrencode` — see [Payment sheet](#payment-sheet).
 - For the `personal-finance` skill only: [`uv`](https://docs.astral.sh/uv/),
   `pdftotext` (poppler) and a BUU Google account; optionally Obsidian and
   [`rclone`](https://rclone.org/) — see [Personal finance](#personal-finance).
@@ -126,6 +129,7 @@ profile at `~/.local/share/buu-docnum/profile`, already outside the plugin.
 | `business-card` | script tested (full flow not yet) | should work | should work |
 | `personal-finance` | tested (Google sign-in step not yet) | should work | should work (`aisync` needs bash) |
 | `exam-paper` | tested on synthetic scans (real scans not yet) | should work | should work |
+| `pay-sheet` | should work | tested (macOS) | should work |
 | `doc-number` | tested | should work | needs a graphical session |
 | `draft-memo` / `thai-memo` | tested | check the LibreOffice path | check the LibreOffice path |
 
@@ -530,6 +534,33 @@ match the spec rather than reading it shifted. Marks it can't be sure of
 (double, faint, half-erased, unknown ID) are never guessed: they go to
 `review.csv` with a cropped image each, and your decisions go back in through
 `overrides.csv`. The blank faculty forms are in `templates/exam/`.
+
+## Payment sheet
+
+The `pay-sheet` skill handles a transfer request end to end. Paste or point Claude
+at the request (an email listing people, amounts and PromptPay numbers or bank
+accounts) and it writes one `payments.json`
+([`examples/payments.json`](examples/payments.json)) in the project's finance folder
+and builds a one-page sheet: a row per payee with a **PromptPay QR that carries the
+amount** on PromptPay rows (bank rows show the account number only), the status,
+reference and slip columns empty. You scan each QR with your bank app, check the
+recipient's name, confirm — and send Claude the slips. It reads each one, matches it
+to its row by name, amount and the last digits, files it as `receipts/NN-REF.jpg`,
+marks the row paid with the bank's reference number, appends the slip images as
+extra pages, and drafts the reply to the requester with every reference listed.
+Transfers that went out from the wrong account and were reimbursed are recorded as
+a correction with the net amount that left the project account.
+
+```bash
+python3 scripts/pay_sheet.py check dir/                                   # totals, refs, slips present
+python3 scripts/pay_sheet.py build dir/                                   # payments.json → PDF (+ qr/)
+python3 scripts/pay_sheet.py mark dir/ 2 --ref A0000000000000000 --date "1 ม.ค. 2570 09:00" --slip ~/Downloads/slip.jpg
+python3 scripts/pay_sheet.py payload 081-234-5678 1200                    # the PromptPay payload, to check
+```
+
+Claude never makes a transfer or types a number into a bank app; the JSON, QR
+images and slips carry account and phone numbers, so keep the folder with the
+project's private finance records.
 
 ## Triage
 

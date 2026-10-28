@@ -1,0 +1,14 @@
+{
+ "file": "payment-sheet",
+ "title": "ค่าตอบแทนกรรมการสอบ 1–2 ม.ค. 2570 — 3 คน รวม 5,200 บาท",
+ "subtitle": "ตามอีเมลของ <ผู้ขอ> 3 ม.ค. 2570 — โอนจากบัญชีโครงการ ธ.กรุงไทย xxx-x-xxxxx-x",
+ "total": 5200,
+ "rows": [
+  {"no": 1, "name": "นายตัวอย่าง หนึ่ง", "amount": 3600, "channel": "bank", "bank": "ธ.กรุงไทย", "number": "000-0-00000-0", "check": false, "paid": false, "date": "", "ref": "", "receipt": "", "note": ""},
+  {"no": 2, "name": "นางสาวตัวอย่าง สอง", "amount": 1200, "channel": "pp", "number": "081-234-5678", "check": true, "paid": false, "date": "", "ref": "", "receipt": "", "note": ""},
+  {"no": 3, "name": "นายตัวอย่าง สาม", "amount": 400, "channel": "pp", "number": "089-876-5432", "check": false, "paid": false, "date": "", "ref": "", "receipt": "", "note": ""}
+ ],
+ "corrections": [],
+ "notes": ["โอนครบแล้วแจ้ง <ผู้ขอ> เพื่อบันทึกในทะเบียนรับ-จ่าย"],
+ "footer": "<โครงการ> — บันทึกการโอนค่าตอบแทนกรรมการสอบ 1–2 ม.ค. 2570"
+}
