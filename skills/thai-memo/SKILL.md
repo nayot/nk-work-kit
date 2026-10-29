@@ -1,7 +1,7 @@
 ---
 name: thai-memo
 description: Activate this skill when the user asks to write, draft, or create a Thai official document — บันทึกข้อความ, บันทึกข้อความภายใน, หนังสือภายนอก, หนังสือราชการ, Thai government memo, Thai official letter, or any Thai administrative document. Also activate when the user says "ร่างบันทึกข้อความ", "เขียนหนังสือ", "ขอแก้ไขเกรด" (grade correction memo), or similar Thai bureaucratic writing tasks. Also covers sending a finished PDF to BUU e-Signature (e-sign.buu.ac.th) for signing.
-version: 1.3.0
+version: 1.4.0
 ---
 
 # Thai Official Document Skill
@@ -46,13 +46,34 @@ Templates are bundled at `<plugin-root>/templates/`:
 
 The build script resolves templates relative to its own location automatically.
 
+## Numerals: Arabic by default, Thai only for สำนักพระราชวัง
+
+From **1 November 2569** BUU writes all official letters and memos — to units
+inside and outside the university — with **Arabic numerals (0–9)**: dates,
+document numbers (`ที่ อว 8116/1411`), phone numbers, course codes, amounts,
+list numbers. **Thai numerals (๐–๙) are used only for documents addressed to
+สำนักพระราชวัง** (the Royal Household Bureau). Thai month names and the
+Buddhist-era year stay. Source: BUU administrative committee meeting 10/2569
+(06.10.2569, agenda 5.4.5), circular อว 8100/ว 13719 (22.10.2569).
+
+- Default: write every number in the JSON with Arabic digits. `build_memo.py`
+  (`"numerals": "arabic"`, the default) also turns any stray Thai digit in the
+  document into an Arabic one and says so on stderr.
+- **If the addressee (`to`) is, or the document goes to, สำนักพระราชวัง, stop and
+  flag it to the user**: confirm, then set `"numerals": "thai"` and write all
+  numbers in the JSON with Thai digits (the script then writes the default date
+  and the attachment list in Thai digits too, and leaves the rest as given).
+  The script warns when `to` names สำนักพระราชวัง but numerals are Arabic.
+- `"numerals": "thai"` is also the choice when re-issuing, unchanged, a
+  document first dated before 01.11.2569 — ask the user rather than assume.
+
 ## Thai date conversion
 
 Gregorian → Buddhist Era: add 543 to the year.  
-Use Thai digits (๐–๙) and Thai month names.
+Use Arabic digits (Thai digits only for สำนักพระราชวัง, see above) and Thai month names.
 
-- บันทึกข้อความ (`nai`): `๘ ตุลาคม พ.ศ. ๒๕๖๙`
-- หนังสือภายนอก (`nok`): `๘ ตุลาคม ๒๕๖๙` — **no พ.ศ.** in the document date. `build_memo.py` removes it if present.
+- บันทึกข้อความ (`nai`): `8 ตุลาคม พ.ศ. 2569`
+- หนังสือภายนอก (`nok`): `8 ตุลาคม 2569` — **no พ.ศ.** in the document date. `build_memo.py` removes it if present.
 
 (Inside the body text, a date may still be written with พ.ศ.)
 
@@ -60,7 +81,7 @@ Use Thai digits (๐–๙) and Thai month names.
 
 Do not re-implement these by hand or post-process the ODT — `build_memo.py` emits them, matching the signed หนังสือภายนอก precedent:
 
-- **`doc_number` renders inline** on the ที่ line: `ที่ อว ๘๑๑๖ / XXXX`, with the tab jumping to the sender block on the right. Pass only the part after `อว` — the script writes the `ที่ อว` prefix itself.
+- **`doc_number` renders inline** on the ที่ line: `ที่ อว 8116 / XXXX`, with the tab jumping to the sender block on the right. Pass only the part after `อว` — the script writes the `ที่ อว` prefix itself.
 - **คำลงท้าย** (`ขอแสดงความนับถือ`) is emitted automatically for `nok`, indented by tabs. Do **not** put it in `body[]` — it would appear twice. Pass `"closing": ""` to suppress it, or a different string to replace it.
 - **Contact box** (`contact_box`, list of lines — ส่วนราชการเจ้าของเรื่อง, โทร, ไปรษณีย์อิเล็กทรอนิกส์, email) is always emitted for `nok` as a borderless page-anchored text box at the bottom left of page 1. Always collect it; without it the box shows `from_org` only and the script warns.
 - **Signature and role lines** get a leading tab so they land on the centre tab stop of the `ลงชื่อ` style.
@@ -75,7 +96,7 @@ The name sits tight inside the brackets — `(ผู้ช่วยศาสต�
 - For grade correction memos, `type = nai`, `to = หัวหน้าภาควิชา...`, body explains the error and includes a comparison table.
 - For formal external letters, `type = nok`; include `from_org`, `from_address`, and optionally `enclosures`.
 - Tables are optional; include only when the user provides structured data to compare.
-- `attachments` become a numbered list (๑. ๒. ๓.) at the end of the body, before คำลงท้าย.
+- `attachments` become a numbered list (1. 2. 3.; ๑. ๒. ๓. with `"numerals": "thai"`) at the end of the body, before คำลงท้าย.
 
 ---
 
@@ -103,7 +124,7 @@ Path: **จัดการเอกสาร → อัปโหลดเอก�
 Two gotchas, both of which otherwise cost a round trip:
 
 - **`ชื่อเอกสาร` rejects special characters**: `, " ' ; = ? & # \ / % : +`
-  Write the document number with a hyphen — `ที่ อว 8116-XXXX ...` — even though the PDF itself carries `ที่ อว ๘๑๑๖ / XXXX`. The validation message appears inline and shifts the form down, so re-read the page before clicking anything after a failed submit.
+  Write the document number with a hyphen — `ที่ อว 8116-XXXX ...` — as on the PDF (`ที่ อว 8116 / XXXX`) but with a hyphen for the slash. The validation message appears inline and shifts the form down, so re-read the page before clicking anything after a failed submit.
 - **`file_upload` only accepts paths the session may read.** A PDF sitting outside the session's shared paths is rejected — copy it into the session scratchpad first and upload from there.
 
 Use `file_upload` with the file input's `ref`; never click a file input, which opens a native picker you cannot see.

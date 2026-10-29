@@ -1,6 +1,6 @@
 ---
 name: doc-number
-description: Activate this skill when the user wants a document number from BUU Faculty of Engineering's ระบบขอเลขเอกสารอัตโนมัติ — "ขอเลขเอกสาร", "ขอเลขหนังสือ", "ขอเลขที่หนังสือ", "เลข อว8116", "request a document number", "get a doc number" — or wants to see or cancel numbers they have already requested ("เอกสารของฉัน", "ยกเลิกเลขเอกสาร", "list my document numbers"). Also activate right after drafting a บันทึกข้อความ or หนังสือภายนอก, when the ที่ อว ๘๑๑๖/____ field still needs filling.
+description: Activate this skill when the user wants a document number from BUU Faculty of Engineering's ระบบขอเลขเอกสารอัตโนมัติ — "ขอเลขเอกสาร", "ขอเลขหนังสือ", "ขอเลขที่หนังสือ", "เลข อว8116", "request a document number", "get a doc number" — or wants to see or cancel numbers they have already requested ("เอกสารของฉัน", "ยกเลิกเลขเอกสาร", "list my document numbers"). Also activate right after drafting a บันทึกข้อความ or หนังสือภายนอก, when the ที่ อว 8116/____ field still needs filling.
 version: 1.0.0
 ---
 
@@ -103,10 +103,12 @@ Output gives `documentNumber`, `date`, `time`. Report the number to the user.
 
 The natural flow is **draft → number → fill in**:
 
-1. `/draft-memo nai` produces the memo with `ที่ อว ๘๑๑๖/` left blank.
+1. `/draft-memo nai` produces the memo with `ที่ อว 8116/` left blank.
 2. Confirm the เรื่อง and เรียน with the user, then `request --type INTERNAL`.
-3. Put the number into the memo JSON's `doc_number` (convert the digits to Thai
-   numerals — `อว8116/1411` becomes `อว ๘๑๑๖/๑๔๑๑`), rebuild with `build_memo.py`,
+3. Put the number into the memo JSON's `doc_number` in Arabic numerals —
+   `อว8116/1411` becomes `8116/1411` after the `อว` the script writes (BUU rule from
+   01.11.2569, อว 8100/ว 13719; Thai numerals `๘๑๑๖/๑๔๑๑` only for a document to
+   สำนักพระราชวัง, with `"numerals": "thai"`), rebuild with `build_memo.py`,
    and convert to PDF with LibreOffice.
 
 Keep the เรื่อง identical in both places.

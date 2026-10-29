@@ -199,7 +199,20 @@ See [`examples/grade_correction_nai.json`](examples/grade_correction_nai.json) f
 | `signer_name` | string | ✓ | ✓ | ชื่อผู้ลงนาม |
 | `signer_roles` | string[] | ✓ | ✓ | ตำแหน่ง (one string per line) |
 | `contact_box` | string[] | — | ✓ | ส่วนราชการเจ้าของเรื่อง / โทร / อีเมล — one string per line, printed in a borderless text box at the bottom left of page 1. Always emitted; without it the box shows `from_org` only, with a warning |
+| `numerals` | string | optional | optional | `"arabic"` (default) or `"thai"` — see below |
 | `output` | string | optional | optional | Output `.odt` path |
+
+**Numerals.** From 01.11.2569 BUU official letters and memos to any unit, inside
+or outside the university, use Arabic numerals (`ที่ อว 8116/1411`,
+`8 ตุลาคม 2569`); Thai numerals (๐–๙) are only for documents addressed to
+สำนักพระราชวัง. Thai month names and the Buddhist-era year stay. Source: BUU
+administrative committee meeting 10/2569 (06.10.2569, agenda 5.4.5), circular
+อว 8100/ว 13719 (22.10.2569). With the default `"numerals": "arabic"`,
+`build_memo.py` writes generated numbers (default date, attachment list) in
+Arabic digits and converts any Thai digit in the document to Arabic, with a note
+on stderr; it warns if `to` names สำนักพระราชวัง. `"numerals": "thai"` writes the
+generated numbers in Thai digits and leaves the given text as written, so the
+JSON must then carry Thai digits itself.
 
 ## Templates
 

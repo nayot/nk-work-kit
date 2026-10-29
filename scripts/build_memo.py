@@ -7,6 +7,13 @@ Usage:
 
 The JSON file describes all fields for the document.
 See skills/draft-memo/SKILL.md for the full schema.
+
+Numerals: from 01.11.2569 BUU official documents use Arabic digits (0-9);
+Thai digits (๐-๙) only for documents addressed to สำนักพระราชวัง (BUU
+administrative committee 10/2569, agenda 5.4.5; circular อว 8100/ว 13719,
+22.10.2569). "numerals": "arabic" (default) turns every Thai digit in the
+document into an Arabic one; "numerals": "thai" writes the generated numbers
+(default date, attachment list) in Thai digits and leaves the given text as is.
 """
 
 import json, os, re, shutil, sys, zipfile
@@ -36,27 +43,59 @@ def q(ns, tag):
     return f"{{{NS[ns]}}}{tag}"
 
 
-def today_thai(be_prefix=True):
+TO_THAI = str.maketrans("0123456789", "๐๑๒๓๔๕๖๗๘๙")
+TO_ARABIC = str.maketrans("๐๑๒๓๔๕๖๗๘๙", "0123456789")
+NUMERALS = ("arabic", "thai")
+
+
+def num(text, numerals):
+    """Write the digits of a generated number in the document's numerals."""
+    return str(text).translate(TO_THAI if numerals == "thai" else TO_ARABIC)
+
+
+def apply_numerals(body_text, numerals):
+    """With Arabic numerals, turn every Thai digit in the body into an Arabic one.
+
+    The JSON may still carry Thai digits (older drafts, copied text); the
+    rule is enforced here so none reaches the document. Thai numerals leave
+    the given text untouched: Arabic digits in e-mail addresses, URLs and
+    English course names must survive.
+    """
+    if numerals != "arabic":
+        return
+    changed = 0
+    for el in body_text.iter():
+        for attr in ("text", "tail"):
+            v = getattr(el, attr)
+            if v and v != v.translate(TO_ARABIC):
+                changed += sum(c in "๐๑๒๓๔๕๖๗๘๙" for c in v)
+                setattr(el, attr, v.translate(TO_ARABIC))
+    if changed:
+        print(f"note: {changed} Thai digit(s) written as Arabic numerals "
+              "(set \"numerals\": \"thai\" only for สำนักพระราชวัง)", file=sys.stderr)
+
+
+def today_thai(be_prefix=True, numerals="arabic"):
     """Return today as a Thai Buddhist Era date string.
 
-    บันทึกข้อความ dates read "๘ ตุลาคม พ.ศ. ๒๕๖๙"; a หนังสือภายนอก date drops
-    "พ.ศ." and reads "๘ ตุลาคม ๒๕๖๙" (be_prefix=False).
+    บันทึกข้อความ dates read "8 ตุลาคม พ.ศ. 2569"; a หนังสือภายนอก date drops
+    "พ.ศ." and reads "8 ตุลาคม 2569" (be_prefix=False). numerals="thai" gives
+    "๘ ตุลาคม พ.ศ. ๒๕๖๙".
     """
     months = [
         "", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน",
         "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม",
         "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
     ]
-    THAI = str.maketrans("0123456789", "๐๑๒๓๔๕๖๗๘๙")
     now = datetime.today()
-    d = str(now.day).translate(THAI)
+    d = num(now.day, numerals)
     m = months[now.month]
-    y = str(now.year + 543).translate(THAI)
+    y = num(now.year + 543, numerals)
     return f"{d} {m} พ.ศ. {y}" if be_prefix else f"{d} {m} {y}"
 
 
 def nok_date(date):
-    """A หนังสือภายนอก date never carries "พ.ศ.": "๘ ตุลาคม พ.ศ. ๒๕๖๙" -> "๘ ตุลาคม ๒๕๖๙"."""
+    """A หนังสือภายนอก date never carries "พ.ศ.": "8 ตุลาคม พ.ศ. 2569" -> "8 ตุลาคม 2569"."""
     return re.sub(r"\s*พ\.\s*ศ\.\s*", " ", date).strip()
 
 
@@ -187,7 +226,7 @@ def add_table(parent, headers, rows, col_widths=None):
 # Internal memo (บันทึกข้อความภายใน)
 # ══════════════════════════════════════════════════════════════
 
-def build_nai(data, work_dir):
+def build_nai(data, work_dir, numerals="arabic"):
     tree = etree.parse(os.path.join(work_dir, "content.xml"))
     root = tree.getroot()
     body_text = root.find(f".//{q('office','text')}")
@@ -243,7 +282,7 @@ def build_nai(data, work_dir):
     t3_span = etree.SubElement(td, q("text", "span"),
                                 {q("text", "style-name"): "T1"})
     etree.SubElement(t3_span, q("text", "tab"))
-    span(td, "T4", data.get("date", today_thai()))
+    span(td, "T4", data.get("date", today_thai(numerals=numerals)))
 
     # ── เรื่อง ────────────────────────────────────────────────
     re_p = para(body_text, "Standard")
@@ -270,16 +309,14 @@ def build_nai(data, work_dir):
         para(body_text, "P6")   # gap after table
 
     # ── attachments ───────────────────────────────────────────
-    THAI_DIGITS = str.maketrans("0123456789", "๐๑๒๓๔๕๖๗๘๙")
     attachments = data.get("attachments", [])
     if attachments:
         att_intro = para(body_text, "เนื้อความ")
         span(att_intro, "T6",
              "ทั้งนี้ได้แนบหลักฐานประกอบมาด้วย ดังนี้")
         for i, item in enumerate(attachments, 1):
-            num = str(i).translate(THAI_DIGITS)
             li = para(body_text, "เนื้อความ")
-            span(li, "T6", f"    {num}. {item}")
+            span(li, "T6", f"    {num(i, numerals)}. {item}")
 
     # ── blank lines before signature ──────────────────────────
     for _ in range(4):
@@ -296,6 +333,8 @@ def build_nai(data, work_dir):
         span(rp, "T8", role)
 
     para(body_text, "Standard")
+
+    apply_numerals(body_text, numerals)
 
     # pretty_print must stay off: the newline + indentation lxml would insert
     # between sibling spans is rendered by ODF as a visible space, e.g.
@@ -367,7 +406,7 @@ def add_contact_box(root, body_text, seq, data):
 # External letter (หนังสือภายนอก)
 # ══════════════════════════════════════════════════════════════
 
-def build_nok(data, work_dir):
+def build_nok(data, work_dir, numerals="arabic"):
     tree = etree.parse(os.path.join(work_dir, "content.xml"))
     root = tree.getroot()
     body_text = root.find(f".//{q('office','text')}")
@@ -419,7 +458,7 @@ def build_nok(data, work_dir):
 
     # ── วันที่ ────────────────────────────────────────────────
     date_p = para(body_text, "วันที่")
-    span(date_p, "T3", nok_date(data.get("date") or today_thai(be_prefix=False)))
+    span(date_p, "T3", nok_date(data.get("date") or today_thai(be_prefix=False, numerals=numerals)))
 
     # ── เรื่อง ────────────────────────────────────────────────
     re_p = para(body_text, "เรื่องเรียนอ้างถึงสิ่งที่ส่งมาด้วย")
@@ -454,11 +493,9 @@ def build_nok(data, work_dir):
         para(body_text, "P4")
 
     # ── attachments ───────────────────────────────────────────
-    THAI_DIGITS = str.maketrans("0123456789", "๐๑๒๓๔๕๖๗๘๙")
     for i, item in enumerate(data.get("attachments", []), 1):
-        num = str(i).translate(THAI_DIGITS)
         li = para(body_text, "เนื้อความ")
-        span(li, "T6", f"    {num}. {item}")
+        span(li, "T6", f"    {num(i, numerals)}. {item}")
 
     # ── คำลงท้าย ──────────────────────────────────────────────
     # Indented to the right by tabs, as in the signed precedent.
@@ -493,6 +530,8 @@ def build_nok(data, work_dir):
     # bottom left of page 1, sitting on the bottom margin.
     add_contact_box(root, body_text, seq, data)
 
+    apply_numerals(body_text, numerals)
+
     # pretty_print must stay off: the newline + indentation lxml would insert
     # between sibling spans is rendered by ODF as a visible space, e.g.
     # "( ผู้ช่วยศาสตราจารย์ ... )" instead of "(ผู้ช่วยศาสตราจารย์ ...)".
@@ -518,14 +557,22 @@ def main():
     if not output.endswith(".odt"):
         output += ".odt"
 
+    numerals = (data.get("numerals") or "arabic").lower()
+    if numerals not in NUMERALS:
+        print(f"Unknown numerals '{numerals}'. Use 'arabic' or 'thai'.", file=sys.stderr)
+        sys.exit(1)
+    if numerals == "arabic" and "สำนักพระราชวัง" in data.get("to", ""):
+        print("warning: addressed to สำนักพระราชวัง, which takes Thai numerals; "
+              "set \"numerals\": \"thai\"", file=sys.stderr)
+
     work_dir = f"/tmp/memo_build_{os.getpid()}"
 
     if doc_type == "nai":
         extract_ott(NAI_TEMPLATE, work_dir)
-        build_nai(data, work_dir)
+        build_nai(data, work_dir, numerals)
     elif doc_type == "nok":
         extract_ott(NOK_TEMPLATE, work_dir)
-        build_nok(data, work_dir)
+        build_nok(data, work_dir, numerals)
     else:
         print(f"Unknown type '{doc_type}'. Use 'nai' or 'nok'.", file=sys.stderr)
         sys.exit(1)

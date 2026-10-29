@@ -50,7 +50,7 @@ Ask the user for missing fields. Use the language they're writing in (Thai/Engli
 
 | Field | Thai label | Required |
 |---|---|---|
-| `doc_number` | ที่ | Yes — the part after `อว` only, e.g. `๘๑๑๖ / XXXX` |
+| `doc_number` | ที่ | Yes — the part after `อว` only, e.g. `8116 / XXXX` |
 | `from_org` | จาก (ชื่อหน่วยงาน) | Yes |
 | `from_address` | ที่อยู่หน่วยงาน | No |
 | `date` | วันที่ | Yes |
@@ -63,7 +63,7 @@ Ask the user for missing fields. Use the language they're writing in (Thai/Engli
 | `closing` | คำลงท้าย | No — defaults to `ขอแสดงความนับถือ`; `""` omits it |
 | `signer_name` | ชื่อผู้ลงนาม | Yes |
 | `signer_roles` | ตำแหน่ง | Yes |
-| `contact_box` | ส่วนราชการเจ้าของเรื่อง / โทร / อีเมล | Yes — list of lines, e.g. `["ภาควิชาวิศวกรรมไฟฟ้า", "โทร ๐๘๑-xxx-xxxx", "ไปรษณีย์อิเล็กทรอนิกส์", "name@eng.buu.ac.th"]` |
+| `contact_box` | ส่วนราชการเจ้าของเรื่อง / โทร / อีเมล | Yes — list of lines, e.g. `["ภาควิชาวิศวกรรมไฟฟ้า", "โทร 081-xxx-xxxx", "ไปรษณีย์อิเล็กทรอนิกส์", "name@eng.buu.ac.th"]` |
 
 The script always prints `contact_box` as a borderless text box at the bottom
 left of page 1 (without it, the box shows `from_org` only and warns), so do not
@@ -76,8 +76,17 @@ the sender block, so do not repeat either in `from_org`.
 `closing`, and it would otherwise appear twice.
 
 **Date default:** Convert today's Gregorian date to Thai Buddhist Era (add 543).  
-Thai month names: มกราคม กุมภาพันธ์ มีนาคม เมษายน พฤษภาคม มิถุนายน กรกฎาคม สิงหาคม กันยายน ตุลาคม พฤศจิกายน ธันวาคม  
-Use Thai digits: ๐๑๒๓๔๕๖๗๘๙
+Thai month names: มกราคม กุมภาพันธ์ มีนาคม เมษายน พฤษภาคม มิถุนายน กรกฎาคม สิงหาคม กันยายน ตุลาคม พฤศจิกายน ธันวาคม
+
+**Numerals:** use Arabic digits (0–9) for every number — dates, `doc_number`,
+phone, course codes, amounts. This is BUU's rule from 01.11.2569 (circular
+อว 8100/ว 13719, 22.10.2569) for official documents to any unit inside or
+outside the university. **Thai digits (๐–๙) only for a document addressed to
+สำนักพระราชวัง:** if `to` (or the destination) is สำนักพระราชวัง, flag it to the
+user, and once confirmed set `"numerals": "thai"` and write the numbers in Thai
+digits. Ask the same when re-issuing unchanged a document dated before
+01.11.2569. With the default `"numerals": "arabic"`, `build_memo.py` converts any
+Thai digit left in the JSON to Arabic and warns if `to` names สำนักพระราชวัง.
 
 ---
 
@@ -119,9 +128,9 @@ Write `/tmp/memo_data_<timestamp>.json`:
 {
   "type": "nai",
   "department": "ภาควิชาวิศวกรรมไฟฟ้า   คณะวิศวกรรมศาสตร์",
-  "phone": "๓๓๓๖",
-  "doc_number": "อฟ. ๐๐๑/๒๕๖๙",
-  "date": "๒๔ มิถุนายน พ.ศ. ๒๕๖๙",
+  "phone": "3336",
+  "doc_number": "อฟ. 001/2569",
+  "date": "24 มิถุนายน พ.ศ. 2569",
   "subject": "ขออนุมัติ...",
   "to": "หัวหน้าภาควิชาวิศวกรรมไฟฟ้า",
   "body": [
@@ -141,14 +150,15 @@ Write `/tmp/memo_data_<timestamp>.json`:
   ],
   "signer_name": "ผู้ช่วยศาสตราจารย์ ดร. ชื่อ  นามสกุล",
   "signer_roles": [
-    "ผู้สอนรายวิชา ๕๑๔๓๓๖๖๔ Engineering Electromagnetics",
+    "ผู้สอนรายวิชา 51433664 Engineering Electromagnetics",
     "ภาควิชาวิศวกรรมไฟฟ้า คณะวิศวกรรมศาสตร์"
   ],
+  "numerals": "arabic",
   "output": "/home/user/documents/memo.odt"
 }
 ```
 
-**Date format differs by type:** a `nai` (บันทึกข้อความ) date keeps พ.ศ. (`๒๔ มิถุนายน พ.ศ. ๒๕๖๙`); a `nok` (หนังสือภายนอก) date **never** includes พ.ศ. (`๘ ตุลาคม ๒๕๖๙`). The build script strips a stray `พ.ศ.` from a `nok` date anyway.
+**Date format differs by type:** a `nai` (บันทึกข้อความ) date keeps พ.ศ. (`24 มิถุนายน พ.ศ. 2569`); a `nok` (หนังสือภายนอก) date **never** includes พ.ศ. (`8 ตุลาคม 2569`). The build script strips a stray `พ.ศ.` from a `nok` date anyway.
 
 For `nok`, add `"from_org"`, `"from_address"`, `"enclosures"` and `"contact_box"`; omit
 `"department"` and `"phone"`. `"closing"` defaults to `ขอแสดงความนับถือ`:
@@ -156,13 +166,13 @@ For `nok`, add `"from_org"`, `"from_address"`, `"enclosures"` and `"contact_box"
 ```json
 {
   "type": "nok",
-  "doc_number": "๘๑๑๖ / XXXX",
+  "doc_number": "8116 / XXXX",
   "from_org": "คณะวิศวกรรมศาสตร์ มหาวิทยาลัยบูรพา",
   "from_address": [
-    "๑๖๙ ถนนลงหาดบางแสน ตำบลแสนสุข",
-    "อำเภอเมือง ชลบุรี ๒๐๑๓๑"
+    "169 ถนนลงหาดบางแสน ตำบลแสนสุข",
+    "อำเภอเมือง ชลบุรี 20131"
   ],
-  "date": "๒๒ กันยายน ๒๕๖๙",
+  "date": "22 กันยายน 2569",
   "subject": "ขอเชิญเข้าร่วม...",
   "to": "คุณ... ตำแหน่ง หน่วยงาน",
   "body": [
@@ -173,7 +183,7 @@ For `nok`, add `"from_org"`, `"from_address"`, `"enclosures"` and `"contact_box"
   "signer_roles": ["คณบดีคณะวิศวกรรมศาสตร์"],
   "contact_box": [
     "ภาควิชาวิศวกรรมไฟฟ้า",
-    "โทร ๐๘๑-xxx-xxxx",
+    "โทร 081-xxx-xxxx",
     "ไปรษณีย์อิเล็กทรอนิกส์",
     "name@eng.buu.ac.th"
   ],
