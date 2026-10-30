@@ -630,7 +630,10 @@ never joined), or by still here vs left. Times are Asia/Bangkok.
 
 Emails come from the BUU directory and your Google Contacts; for other people
 Google shows only a name, and the skill fills in the email from the calendar
-invite only when the name matches exactly one invitee (marked "from invite").
+invite only when the name matches exactly one invitee — by the invitee's name,
+or, when the invite has only an address, by its form (`kerwin_hing@`,
+`schalam@`, `petchtinnabal@`) — marked "from invite". A one-letter name such as
+"Gloria H" is never matched to an address.
 Meet shows an **ended** meeting only to its organiser; a **live** one to anyone
 in it.
 

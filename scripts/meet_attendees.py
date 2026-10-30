@@ -42,9 +42,14 @@ EMAILS
 Meet gives signed-in users as `users/<id>`; People `people:batchGet` turns that
 into an email for BUU-domain users (DOMAIN_PROFILE) and for people in the user's
 Contacts (CONTACT). Other external users come back without one. For those, the
-display name is matched against the Calendar invite's attendees: normalised exact
-match on the attendee's name, and only when exactly one attendee matches; never a
-fuzzy guess. Those emails are marked email_source "invite".
+display name is matched against the Calendar invite's attendees, and only when
+exactly one attendee matches; never a fuzzy guess:
+  - an invitee with a name: normalised exact match → email_source "invite";
+  - an invitee without one (most external invitees): the email's local part,
+    dots/underscores/hyphens/digits dropped, must equal first+last, last+first,
+    first initial+last or all name tokens joined (petchtinnabal, kerwin_hing,
+    schalam, jkong) → "invite (name≈email)". A one-letter first or last name
+    ("Gloria H") is never matched this way. Tests: meet_attendees_test.py.
 
 `minutes` is the span from first join to last leave (or now while still in the
 call); someone who left and came back is counted for the gap too.
@@ -367,6 +372,43 @@ def norm(name: str) -> str:
     return re.sub(r"[\W_]+", "", name)
 
 
+def name_tokens(name: str) -> list[str]:
+    """Lowercase letter runs of a display name, digits and (…) dropped."""
+    name = re.sub(r"\(.*?\)", " ", unicodedata.normalize("NFKC", name or "").casefold())
+    return re.findall(r"[^\W\d_]+", name)
+
+
+def local_keys(name: str) -> set[str]:
+    """Email local parts (dots, underscores, hyphens, digits dropped) this name
+    plausibly owns: first+last, last+first, first initial+last, all tokens.
+    Empty when the first or last token is a single letter ("Gloria H"): too weak."""
+    t = name_tokens(name)
+    if len(t) < 2 or len(t[0]) < 2 or len(t[-1]) < 2:
+        return set()
+    first, last = t[0], t[-1]
+    return {first + last, last + first, first[0] + last, "".join(t)}
+
+
+def local_part(email: str) -> str:
+    return re.sub(r"[._\-\d]+", "", email.split("@", 1)[0].lower())
+
+
+def match_invitee(name: str, attendees: list[dict], taken: set[str]) -> tuple[str | None, str | None, bool]:
+    """(email, email_source, ambiguous) for a Meet name against the invite.
+    An invitee with a displayName is matched on the normalised name; one without
+    on its email's local part. Only a single candidate counts; several →
+    ambiguous. Invitees whose email is already taken are skipped."""
+    free = [a for a in attendees if a.get("email") and a["email"].lower() not in taken]
+    by_name = [a for a in free if a.get("displayName") and norm(a["displayName"]) == norm(name)]
+    if by_name:
+        return (by_name[0]["email"].lower(), "invite", False) if len(by_name) == 1 else (None, None, True)
+    keys = local_keys(name)
+    by_local = [a for a in free if not a.get("displayName") and local_part(a["email"]) in keys]
+    if len(by_local) == 1:
+        return by_local[0]["email"].lower(), "invite (name≈email)", False
+    return None, None, len(by_local) > 1
+
+
 def emails_for(s, user_ids: list[str], notes: list[str]) -> dict[str, tuple[str, str]]:
     """users/<id> → (email, source) via people:batchGet."""
     out: dict[str, tuple[str, str]] = {}
@@ -413,24 +455,30 @@ def build(s, rec: dict, code: str | None, event: dict | None, notes: list[str]) 
     parts = list(pages(s, f"{MEET}/{rec['name']}/participants", "participants", pageSize=250))
     found = emails_for(s, [p["signedinUser"]["user"] for p in parts if "signedinUser" in p], notes)
     by_email = {a["email"].lower(): a for a in attendees if a.get("email")}
-    by_name: dict[str, list[dict]] = {}
-    for a in attendees:
-        if a.get("displayName"):
-            by_name.setdefault(norm(a["displayName"]), []).append(a)
+    taken = {e for e, _ in found.values()}
+    guesses = {}                                   # participant index → (email, source, ambiguous)
+    for i, p in enumerate(parts):
+        if "signedinUser" in p and p["signedinUser"].get("user") not in found:
+            guesses[i] = match_invitee(p["signedinUser"].get("displayName", ""), attendees, taken)
+    claims = [g[0] for g in guesses.values() if g[0]]
+    for i, g in guesses.items():                   # one invitee claimed by two names: neither
+        if g[0] and claims.count(g[0]) > 1:
+            guesses[i] = (None, None, True)
 
     rows, matched = [], set()
-    for p in parts:
+    for i, p in enumerate(parts):
         kind = next(k for k in ("signedinUser", "anonymousUser", "phoneUser") if k in p)
         name = p[kind].get("displayName", "")
         email, source = found.get(p[kind].get("user", ""), (None, None))
-        if not email and kind == "signedinUser" and len(cands := by_name.get(norm(name), [])) == 1:
-            email, source = cands[0]["email"].lower(), "invite"
+        ambiguous = False
+        if not email and i in guesses:
+            email, source, ambiguous = guesses[i]
         joined, left = ts(p.get("earliestStartTime")), ts(p.get("latestEndTime"))
         here = rec_end is None and left is None
         upto = (now if here else left or rec_end) or now
-        # None: no invite to compare with, or the name fits several invitees.
-        invited = None if not event or (not email and len(by_name.get(norm(name), [])) > 1) \
-            else bool(email and email in by_email)
+        # None: no invite to compare with, or no email to compare (a name we could
+        # not tie to one invitee may still be on the invite).
+        invited = None if not event or ambiguous or not email else email in by_email
         if invited:
             matched.add(email)
         rows.append({"name": name, "email": email, "email_source": source,
@@ -461,15 +509,15 @@ def show(d: dict) -> None:
         when = f"{(r['joined'] or '')[11:16]}–{'now' if r['still_here'] else (r['left'] or '')[11:16]}"
         inv = {True: "invited", False: "not invited",
                None: "invited?" if m["calendar_event"] else ""}[r["invited"]]
-        src = f" ({r['email_source']})" if r["email_source"] == "invite" else ""
-        print(f"  {r['name'][:32]:32} {(r['email'] or '-') + src:42} {when:12} "
+        src = " (from invite)" if (r["email_source"] or "").startswith("invite") else ""
+        print(f"  {r['name'][:32]:32} {(r['email'] or '-') + src:54} {when:12} "
               f"{r['minutes'] or 0:>4} min  {inv}")
     present = sum(r["still_here"] for r in d["participants"])
     print(f"{len(d['participants'])} joined" + (f", {present} still here" if m["live"] else ""))
     if d["invited_absent"]:
         print("Invited, did not join:")
         for a in d["invited_absent"]:
-            print(f"  {a['name'] or '':32} {a['email']:42} {a['response'] or ''}")
+            print(f"  {a['name'] or '':32} {a['email']:54} {a['response'] or ''}")
     for n in d["notes"]:
         print(f"Note: {n}")
 
