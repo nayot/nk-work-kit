@@ -15,6 +15,7 @@ Engineering, Burapha University.
 | `project-manager` | Track ongoing projects as notes in an **Obsidian** vault: a generated dashboard with links to the notes, updates while you work, and an optional email digest of upcoming and overdue items |
 | `business-card` | Turn a photo of a business card (นามบัตร) into a **Google Contact** (updating an existing one) and a Gmail **draft** greeting that shares your vCard link, and files the photo in your Drive **Business Cards** folder |
 | `triage` | One short **Act / Read / FYI** list from Gmail, **eDoc**/**e-Signature** and WhatsApp — read-only; optionally emailed to yourself on weekday mornings and afternoons |
+| `meet-attendees` | Who is, or was, in a **Google Meet** call: names, emails where Google shows them, join/leave times and who was on the invite, grouped as you ask — read-only |
 | `exam-paper` | A multiple-choice exam end to end: the **paper**, a machine-readable **bubble answer sheet**, the department's **ใบปะหน้าข้อสอบ** / **ใบนำส่ง** and **ใบเซ็นชื่อเข้าสอบ** per room, then **marking** the scanned sheets with unclear marks listed for review |
 | `pay-sheet` | A payment request (ค่าตอบแทนกรรมการ, วิทยากร …) into a one-page sheet with a **PromptPay QR per payee**, amount pre-filled, that becomes the **payment record**: each transfer slip read, filed and ticked with the bank's reference number, the slip images appended, and the reply to the requester drafted |
 | `personal-finance` | **BUU Personnel Finance**: keep income, spending, advances, budget, mortgage, tax and a retirement projection in your own private **Google Sheet**, imported from Krung Thai and UOB statements, with an Obsidian or HTML dashboard |
@@ -46,6 +47,8 @@ Ask Claude in your own words, or use the slash commands below.
   is optional — the Gmail connector, the `pending-docs` setup for eDoc, a
   WhatsApp MCP server; for the emailed brief, the `project-manager` mail setup
   (`PM_NOTIFY_TO`, `auth-gmail`) and bash — see [Triage](#triage).
+- For the `meet-attendees` skill only: [`uv`](https://docs.astral.sh/uv/) and a
+  one-time Google sign-in — see [Meet attendees](#meet-attendees).
 - For the `exam-paper` skill only: [`uv`](https://docs.astral.sh/uv/), XeLaTeX
   (TeX Live) with the **Sarabun** font, `pdftoppm` (poppler) and LibreOffice —
   see [Exam paper](#exam-paper).
@@ -127,6 +130,7 @@ profile at `~/.local/share/buu-docnum/profile`, already outside the plugin.
 | `transcribe` | tested | should work | should work |
 | `triage` | prototype tested (plugin version not yet) | should work (schedule via cron) | interactive only (the runner is bash) |
 | `business-card` | script tested (full flow not yet) | should work | should work |
+| `meet-attendees` | should work | ended meeting tested (live call and Calendar not yet) | should work |
 | `personal-finance` | tested (Google sign-in step not yet) | should work | should work (`aisync` needs bash) |
 | `exam-paper` | tested on synthetic scans (real scans not yet) | should work | should work |
 | `pay-sheet` | should work | tested (macOS) | should work |
@@ -614,6 +618,31 @@ uv run scripts/triage_send.py --show-config        # window + non-secret setting
 uv run scripts/triage_send.py --subject "Test" --html brief.html --dry-run
 scripts/triage_run --dry-run                        # print the headless command
 systemctl --user list-timers nk-triage.timer        # next scheduled brief
+```
+
+## Meet attendees
+
+Ask "who's here?" (or "ใครอยู่ในห้องบ้าง") during a Google Meet call and the
+`meet-attendees` skill lists who is in it, and who has left; ask about an
+ended meeting (Meet keeps records about 30 days) by its code or link. It can
+group them by organisation, by invited vs not invited (including invitees who
+never joined), or by still here vs left. Times are Asia/Bangkok.
+
+Emails come from the BUU directory and your Google Contacts; for other people
+Google shows only a name, and the skill fills in the email from the calendar
+invite only when the name matches exactly one invitee (marked "from invite").
+Meet shows an **ended** meeting only to its organiser; a **live** one to anyone
+in it.
+
+Setup, once: sign in with your BUU Google account. It uses the plugin's own
+Google sign-in (no `gcloud`), asks for read-only Meet, directory, contacts and
+calendar access, and keeps its token in `~/.config/nk-work-kit/meet-token.json`.
+
+```bash
+uv run scripts/meet_attendees.py auth                 # opens a browser; --no-browser prints a link
+uv run scripts/meet_attendees.py                      # the meeting on your calendar now
+uv run scripts/meet_attendees.py abc-mnop-xyz --json  # by code or meet.google.com link
+uv run scripts/meet_attendees.py recent               # your recent meetings
 ```
 
 ## License
