@@ -19,6 +19,7 @@ Engineering, Burapha University.
 | `exam-paper` | A multiple-choice exam end to end: the **paper**, a machine-readable **bubble answer sheet**, the department's **ใบปะหน้าข้อสอบ** / **ใบนำส่ง** and **ใบเซ็นชื่อเข้าสอบ** per room, then **marking** the scanned sheets with unclear marks listed for review |
 | `pay-sheet` | A payment request (ค่าตอบแทนกรรมการ, วิทยากร …) into a one-page sheet with a **PromptPay QR per payee**, amount pre-filled, that becomes the **payment record**: each transfer slip read, filed and ticked with the bank's reference number, the slip images appended, and the reply to the requester drafted |
 | `personal-finance` | **BUU Personnel Finance**: keep income, spending, advances, budget, mortgage, tax and a retirement projection in your own private **Google Sheet**, imported from Krung Thai and UOB statements, with an Obsidian or HTML dashboard |
+| `tqf3` | Fill in a **มคอ.3** (TQF 3 course specification) in tqf.buu.ac.th from a spec JSON — objectives, CLOs per TQF domain, the week table, measurement per CLO, grade scale, resources, review — in your own browser, with the rendered result checked; you press ส่ง มคอ.3 yourself |
 | `reg-grades` | Set up score items and enter marks for every section in **reg.buu.ac.th** (บันทึกคะแนน), matched to student IDs in your own browser — checked before each save and read back after; new items stay hidden from students until you switch them on |
 
 Ask Claude in your own words, or use the slash commands below.
@@ -55,6 +56,7 @@ Ask Claude in your own words, or use the slash commands below.
   see [Exam paper](#exam-paper).
 - For the `pay-sheet` skill only: XeLaTeX (TeX Live) with the **Sarabun** font and
   `qrencode` — see [Payment sheet](#payment-sheet).
+- For the `tqf3` skill only: Claude in Chrome, signed in to tqf.buu.ac.th by you.
 - For the `reg-grades` skill only: Claude in Chrome, signed in to reg.buu.ac.th by you;
   `python3` for the helper.
 - For the `personal-finance` skill only: [`uv`](https://docs.astral.sh/uv/),
@@ -658,6 +660,28 @@ uv run scripts/meet_attendees.py                      # the meeting on your cale
 uv run scripts/meet_attendees.py abc-mnop-xyz --json  # by code or meet.google.com link
 uv run scripts/meet_attendees.py recent               # your recent meetings
 ```
+
+## TQF 3 (มคอ.3)
+
+The `tqf3` skill enters a course specification into BUU's TQF system
+(https://tqf.buu.ac.th) in your own signed-in Chrome. You write the content once
+as a spec JSON (`examples/tqf3_spec.json` shows the schema: section-1 texts and
+objectives, CLOs with TQF domain and PLO codes, the week table, measurement per
+CLO, components, grade scale, resources, review); the helper checks it and
+prints what each page needs:
+
+```bash
+python3 scripts/tqf3.py check spec.json                 # weights, hours, CLO links, unsupported characters
+python3 scripts/tqf3.py text  spec.json --section 32    # texts to paste
+python3 scripts/tqf3.py js    spec.json --section 31    # page script for the week table (adds --no-save to dry-run)
+```
+
+Known quirks of the system, handled by the skill: a course appears only after
+"ปรับปรุงรายวิชาจากระบบทะเบียน"; the course may be mapped to another department's
+curriculum PLOs (the skill shows you the system's list before adding CLOs);
+CLOs can't be edited, only deleted; the database stores Greek letters and math
+symbols as "?" (write them as words). The skill saves section by section and
+reads the rendered มคอ.3 back; it never presses ส่ง มคอ.3.
 
 ## License
 
