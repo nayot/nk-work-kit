@@ -19,6 +19,7 @@ Engineering, Burapha University.
 | `exam-paper` | A multiple-choice exam end to end: the **paper**, a machine-readable **bubble answer sheet**, the department's **ใบปะหน้าข้อสอบ** / **ใบนำส่ง** and **ใบเซ็นชื่อเข้าสอบ** per room, then **marking** the scanned sheets with unclear marks listed for review |
 | `pay-sheet` | A payment request (ค่าตอบแทนกรรมการ, วิทยากร …) into a one-page sheet with a **PromptPay QR per payee**, amount pre-filled, that becomes the **payment record**: each transfer slip read, filed and ticked with the bank's reference number, the slip images appended, and the reply to the requester drafted |
 | `personal-finance` | **BUU Personnel Finance**: keep income, spending, advances, budget, mortgage, tax and a retirement projection in your own private **Google Sheet**, imported from Krung Thai and UOB statements, with an Obsidian or HTML dashboard |
+| `reg-grades` | Set up score items and enter marks for every section in **reg.buu.ac.th** (บันทึกคะแนน), matched to student IDs in your own browser — checked before each save and read back after; new items stay hidden from students until you switch them on |
 
 Ask Claude in your own words, or use the slash commands below.
 
@@ -54,6 +55,8 @@ Ask Claude in your own words, or use the slash commands below.
   see [Exam paper](#exam-paper).
 - For the `pay-sheet` skill only: XeLaTeX (TeX Live) with the **Sarabun** font and
   `qrencode` — see [Payment sheet](#payment-sheet).
+- For the `reg-grades` skill only: Claude in Chrome, signed in to reg.buu.ac.th by you;
+  `python3` for the helper.
 - For the `personal-finance` skill only: [`uv`](https://docs.astral.sh/uv/),
   `pdftotext` (poppler) and a BUU Google account; optionally Obsidian and
   [`rclone`](https://rclone.org/) — see [Personal finance](#personal-finance).
