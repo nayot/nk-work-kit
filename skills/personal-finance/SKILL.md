@@ -1,7 +1,7 @@
 ---
 name: personal-finance
 description: BUU Personnel Finance — personal money tracking and retirement planning for Burapha University staff, kept in the user's own private Google Sheet with an optional Obsidian/HTML dashboard. Use this skill whenever the user wants to track income and spending, import bank or credit-card statements (Krung Thai รายการเดินบัญชี, UOB e-statement), check their budget, net worth, credit-card due date or mortgage, follow up money the university owes them (เงินทดรองจ่าย, เบิกคืน, ค่าเล่าเรียนบุตร), look at income tax and deductions (ภ.ง.ด.90/91, RMF, ThaiESG, ประกันบำนาญ), or plan for retirement (เกษียณ, บำนาญ, กบข., กองทุนสำรองเลี้ยงชีพ). Triggers include "การเงินส่วนตัว", "รายรับรายจ่าย", "นำเข้าสเตทเมนต์", "บัตรเครดิตครบกำหนด", "เงินทดรองจ่ายค้าง", "วางแผนเกษียณ", "ภาษีปีนี้", "personal finance", "import my statement", "update the finance dashboard", "how much did I spend", "am I on track for retirement", "set up finance tracking", even when the user only drops a bank statement PDF into the chat.
-version: 1.0.1
+version: 1.1.0
 ---
 
 # BUU Personnel Finance
@@ -71,10 +71,31 @@ Run when the user asks to set up, or when `PF_SHEET_ID` is missing. Go one step 
    against the bank's own totals; on a mismatch nothing is written, so report it rather than work
    around it. Running it twice never duplicates rows.
 2. **Review `Uncategorised` and `Unspecified QR/PromptPay`** (read Transactions where Category is
-   one of those). Group by counterparty, ask the user what the big or recurring ones are, then
-   propose rules for the Rules tab: priority, pattern, sign, category. Typical personal rules: the
-   mortgage transfer, family transfers, a regular payee, a recurring merchant. Write them after the
-   user agrees, then re-categorise matching rows.
+   one of those).
+   - **Check the bank's emails first**, if a Gmail connector is available (otherwise skip straight
+     to asking). Krung Thai emails a notice for each Krungthai NEXT payment from
+     `noreply@krungthai.com`: "แจ้งผลการจ่ายบิลสำเร็จ" (QR/bill; merchant in "ไปยังผู้ให้บริการ"),
+     "แจ้งผลการโอนเงินพร้อมเพย์สำเร็จ" (recipient in "ไปยังบัญชีพร้อมเพย์"), "แจ้งผลการโอนเงินสำเร็จ"
+     (recipient and bank). Each has "วันที่ทำรายการ" (B.E., DD/MM/2569 HH:MM:SS), the amount, the
+     masked "เลขบัญชี", and often "บันทึกช่วยจำ", the user's own memo ("foods", "parking"). Search
+     e.g. `from:noreply@krungthai.com subject:จ่ายบิล after:YYYY/MM/DD before:YYYY/MM/DD`, or the
+     exact amount in quotes ("9,300.00"). Match on account (last digits), date (B.E. − 543) and
+     amount; if several match, pair them in time order. For card rows, one search by amount and
+     date often finds the merchant's or gateway's receipt (e.g. `noreply@2c2p.com`, airline
+     e-tickets). Incoming transfers have no notice. Many notices fill the context: have a subagent
+     read them and return only a table (date | amount | merchant/recipient | account last 4 | memo).
+   - From merchant and memo, **propose category and counterparty** per row ("foods" → Food and
+     dining, "parking" or a car service → Transport and fuel), grouped so the user can agree in
+     one go. Merchant and recipient names go only into the Counterparty column: never into the
+     dashboard, and don't quote the emails anywhere else.
+   - **Ask the user only about what the emails don't explain.** Group what remains by
+     counterparty, ask what the big or recurring ones are.
+   - For anything recurring, propose rules for the Rules tab: priority, pattern, sign, category.
+     Typical personal rules: the mortgage transfer, family transfers, a regular payee, a recurring
+     merchant. Write rules and row categories after the user agrees, then re-categorise matching
+     rows.
+   - If there were no notices, suggest turning on email notices in Krungthai NEXT and typing a
+     short memo (บันทึกช่วยจำ) when paying: that is what lets Claude categorise QR payments.
 3. **Advances:** for anything the user paid on behalf of the university, add a row on the Advances
    tab (ID, description, project, date, amount, evidence) and put the same Advance ID on the
    transaction. When reimbursed, set Status, date and amount. `thai-memo` / `doc-number` in this

@@ -70,6 +70,12 @@ Open Claude Code and say **"set up personal finance tracking"**. Claude walks yo
 QR payment happened, not who was paid. Tell Claude who a number or account belongs to and it adds a
 rule so future ones are categorised automatically.
 
+**Tip: turn on Krungthai NEXT email notices and type a memo when you pay.** Krung Thai then emails
+you the shop or recipient name for each payment, plus your memo (บันทึกช่วยจำ, e.g. "food",
+"parking"). If Claude can read your Gmail, it uses those emails to suggest the category for each QR
+or PromptPay payment, and only asks you about the rest. Nothing is changed until you agree, and the
+names go only into your sheet, never the dashboard.
+
 ## 5. Supported statements
 
 | Bank | Statement | Where to get it |
