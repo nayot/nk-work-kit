@@ -39,6 +39,7 @@ python3 scripts/make_vcf.py contact.json out.vcf
 uv run scripts/triage_send.py --show-config | --subject S --html F [--mark-run ISO] [--dry-run]
 scripts/triage_run [--dry-run]
 python3 scripts/pay_sheet.py build|check DIR | mark DIR ROW --ref R --date D --slip IMG | payload NUMBER AMOUNT
+uv run scripts/pf_test.py                                          # offline tests: personal-finance Txn IDs (overlapping statements, twins)
 python3 scripts/meet_attendees_test.py                             # offline tests: Meet name ↔ invite matching
 uv run scripts/projects_test.py                                    # offline tests: project Kanban board
 uv run scripts/projects.py list [--json] | dashboard | kanban | digest [--days N] | notify [--dry-run] [--force] | waiting [--days N] [--json] | scan-inbox [--dry-run] | new "Name"

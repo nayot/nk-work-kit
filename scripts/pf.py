@@ -332,6 +332,32 @@ def read_accounts(sh):
     return accts
 
 
+def assign_ids(out):
+    """Give each statement row a stable Txn ID; return (rows, number of overlap duplicates dropped).
+
+    The ID hashes acct|date|key|amount|desc plus a twin number, so the same transaction always gets
+    the same ID and identical twins in one statement get #1, #2, ... Twins are counted per statement
+    file: when two statements overlap (a new KTB statement repeating the last days of the previous
+    one), the copy in the second file gets the same twin number, hence the same ID, and is dropped.
+    Across files a key keeps as many rows as the file that has the most of it. A file imported on
+    its own, or with files that don't overlap it, gets the same IDs as before this rule (01.11.2026).
+    """
+    per_file = collections.Counter()   # (file, key) -> rows seen in that file
+    kept = collections.Counter()       # key -> rows kept so far, over all files
+    rows, dropped = [], 0
+    for r in out:
+        b = f"{r['acct']}|{r['date']}|{r['key']}|{r['amount']:.2f}|{r['desc']}"
+        per_file[(r.get('file', r.get('src')), b)] += 1
+        n = per_file[(r.get('file', r.get('src')), b)]
+        if n <= kept[b]:
+            dropped += 1               # the same transaction, already taken from an earlier statement
+            continue
+        kept[b] = n
+        r['id'] = f"{r['acct']}-{r['date'].replace('-', '')}-" + hashlib.sha1(f'{b}|{n}'.encode()).hexdigest()[:6]
+        rows.append(r)
+    return rows, dropped
+
+
 def cmd_import(args):
     sh = Sheet(sheet_id())
     base = pf_dir(args.dir)
@@ -364,8 +390,9 @@ def cmd_import(args):
                 unknown[chk['account']] = ('Krung Thai deposit account', len(rows), rel)
                 continue
             out += [dict(kind=kind, acct=a['id'], date=r['date'], key=r['time'], desc=f"{r['type']} | {r['detail']}",
-                         amount=r['amount'], src=f.name) for r in rows]
-            balances[a['id']] = (chk['balance_date'], chk['balance'])
+                         amount=r['amount'], src=f.name, file=rel) for r in rows]
+            if (balances.get(a['id']) or ('',))[0] <= (chk['balance_date'] or ''):
+                balances[a['id']] = (chk['balance_date'], chk['balance'])
             print(f'  {rel}: {len(rows)} rows, totals match the bank')
         elif kind == 'ktb-loan':
             rows, chk = P.parse_ktb_loan(text)
@@ -393,7 +420,8 @@ def cmd_import(args):
                 if (balances.get(a['id']) or ('',))[0] < chk['statement']:
                     balances[a['id']] = (chk['statement'], c['total'])
                 out += [dict(kind=kind, acct=a['id'], date=r['date'], key=r['post'],
-                             desc=r['desc'] + (f" [{r['fx']}]" if r['fx'] else ''), amount=r['amount'], src=f.name)
+                             desc=r['desc'] + (f" [{r['fx']}]" if r['fx'] else ''), amount=r['amount'], src=f.name,
+                             file=rel)
                         for r in rows if r['last4'] == c['last4']]
             print(f'  {rel}: card statement {chk["statement"]}, balances reconcile')
         else:
@@ -406,11 +434,9 @@ def cmd_import(args):
         print('Add each with `pf.py add-account` (or run with --skip-unknown).')
         sys.exit(3)
 
-    seen = collections.Counter()
-    for r in out:  # stable ID: the same transaction always gets the same ID; identical twins get #2, #3
-        b = f"{r['acct']}|{r['date']}|{r['key']}|{r['amount']:.2f}|{r['desc']}"
-        seen[b] += 1
-        r['id'] = f"{r['acct']}-{r['date'].replace('-', '')}-" + hashlib.sha1(f'{b}|{seen[b]}'.encode()).hexdigest()[:6]
+    out, overlap = assign_ids(out)
+    if overlap:
+        print(f'  {overlap} rows appear in more than one statement (overlapping periods), counted once')
     have = {v[0] for v in sh.get('Transactions!A2:A') if v}
     rules = load_rules(sh)
     new = []
