@@ -3,7 +3,7 @@ name: project-manager
 description: Activate this skill when the user wants to see or update the status of their ongoing projects, tracked as notes in their Obsidian vault — "project status", "สถานะโครงการ", "สถานะโปรเจกต์", "update the X project", "อัปเดตโครงการ", "what's due this week", "มีอะไรใกล้ถึงกำหนด", "มีอะไรเลยกำหนด", "what's overdue", "add a new project", "เพิ่มโครงการ", "update the dashboard", "project digest", "set up project tracking", "ตั้งค่าติดตามโครงการ", "set up the inbox scan", "scan my email for tasks", "ตั้งค่าสแกนอีเมลหางาน". Also activate after a meeting summary, transcript, memo, document number or eDoc item clearly belongs to a tracked project — offer to log it there. Can set up a scheduled email digest of upcoming and overdue items, and a scheduled scan of Gmail and Calendar that adds new tasks to the matching project.
 argument-hint: "[setup | status | due | update <project> | new <name> | dashboard | setup-notify | setup-scan]"
 allowed-tools: [Bash, Read, Edit, Write]
-version: 1.6.0
+version: 1.7.0
 ---
 
 # Project manager — Obsidian as database and dashboard
@@ -156,6 +156,7 @@ type: todo
 |---|---|
 | `list --json` | Read every project with its dated items. **Start here** for any status question. |
 | `dashboard` | Rewrite `Projects/Dashboard.md` (and write the manual if it is missing or outdated). Run after every change. |
+| `kanban` | Write `Projects/Kanban.md` alone (see *Kanban board*). `dashboard` also writes it when `PM_KANBAN=1`. |
 | `manual [--force]` | Write `Projects/User Manual.md`, the bilingual (English/Thai) user manual, linked both ways with the dashboard. |
 | `digest [--days N] [--format text\|html\|json]` | Overdue and upcoming items. The default window is `PM_NOTIFY_DAYS` (14). |
 | `notify [--dry-run] [--force]` | Email the digest to `PM_NOTIFY_TO`. It stays silent when nothing is due and nobody is waited on too long. |
@@ -294,6 +295,32 @@ and again after changing `PM_FOLDER`, `PM_NOTIFY_DAYS` or `PM_STALE_DAYS`
 (all baked into the queries) or after installing Dataview (to collapse the
 install callout). Don't paste the DQL into answers: answer status questions
 from `list --json` as described above.
+
+## Kanban board (optional, `PM_KANBAN=1`)
+
+`Projects/Kanban.md` (`PM_KANBAN_NAME`) is a board for the Obsidian **Kanban**
+community plugin (mgmeyers/obsidian-kanban): one card per active/waiting
+project, in the first lane that fits — 🔴 Overdue (a late dated item), 🟡 This
+week (due within 7 days, fixed, not `PM_NOTIFY_DAYS`), ⏳ Waiting on others
+(`waiting_on`), 🟢 On track — plus a collapsed 💤 lane for idea/on-hold
+projects, written only when there are any. Done/dropped projects and the
+to-do note get no card. A card is `[[hub]] — <most urgent line>`: the earliest
+late or due item with its DD.MM date (and `+N more late`), the longest-waited
+party, or the next dated item / next action.
+
+It is **off by default** and opt-in per user: without the plugin the note is
+a bare checklist, and its `- [ ]` cards show up in any vault-wide Tasks query.
+When the user asks for a board: set `PM_KANBAN=1` in their `.env` (on every
+machine that runs `dashboard`, including a dashboard timer), run
+`dashboard`, and tell them to install the Kanban plugin. Mention that a
+`not done` Tasks query will list the cards unless it adds
+`path does not include Projects/Kanban`; editing their query is their call.
+
+The board is regenerated from the hubs on every `dashboard` (and `kanban`)
+run, so cards dragged by hand go back; to move a project, change its hub.
+Never hand-edit the board. Its frontmatter carries `type: kanban`, which
+`scan()` and the dashboard's Dataview views skip, so the cards never count as
+project tasks. The dashboard links the board only when `PM_KANBAN` is on.
 
 ## Email digest (optional)
 

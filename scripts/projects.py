@@ -12,7 +12,8 @@
 projects.py — project tracking on top of an Obsidian vault.
 
     uv run projects.py list [--json]            every project + its dated items
-    uv run projects.py dashboard                rewrite <vault>/Projects/Dashboard.md
+    uv run projects.py dashboard                rewrite <vault>/Projects/Dashboard.md (+ Kanban.md if PM_KANBAN)
+    uv run projects.py kanban                   rewrite <vault>/Projects/Kanban.md alone
     uv run projects.py manual [--quiet] [--force]   write Projects/User Manual.md
     uv run projects.py digest [--days 14] [--format text|html|json]
     uv run projects.py notify [--dry-run] [--force]
@@ -47,7 +48,8 @@ tasks are ignored.
 
 The vault is never scanned inside `.obsidian/`, `.trash/` or `Confidential/`
 (meld-encrypt notes); from `.obsidian/` it reads only community-plugins.json,
-to see whether Dataview is on. It writes only the dashboard, the user manual
+to see whether Dataview is on. It writes only the dashboard, the Kanban board
+(PM_KANBAN=1, or the `kanban` command), the user manual
 (when missing or from another plugin version), new hubs via `new`, and task
 lines that `scan-inbox` appends to a hub's "## Suggested from inbox" section,
 each atomically (temp file + rename), because the vault is synced by
@@ -81,6 +83,19 @@ government holidays (THAI_HOLIDAYS below, 2026–2027; PM_HOLIDAYS_FILE, one ISO
 date per line, replaces that list). `waiting` lists parties waited on for more
 than N working days (--days, PM_WAITING_DAYS, default 2); the dashboard lists
 all of them, the digest the same over-N list as `waiting`.
+
+KANBAN BOARD (opt-in: PM_KANBAN=1)
+------------------------------------
+`<PM_FOLDER>/Kanban.md` (PM_KANBAN_NAME) is a board for the Obsidian Kanban
+community plugin (mgmeyers/obsidian-kanban), one card per active/waiting
+project, in the first lane that fits: 🔴 Overdue (a late dated item), 🟡 This
+week (due within 7 days), ⏳ Waiting on others (`waiting_on`), 🟢 On track;
+idea/on-hold projects go in a collapsed last lane. Done/dropped projects and
+the to-do note get no card. The board is rebuilt from the hub notes every
+time, so a card dragged by hand goes back on the next rebuild. Its
+frontmatter has `type: kanban`, which `scan()` skips (the cards are `- [ ]`
+lines linking the hubs). Off by default: without the plugin the note is just
+a checklist, and its cards show up in vault-wide Tasks queries.
 
 NOTIFY
 ------
@@ -143,6 +158,8 @@ TODO_NAME = "To-do.md"
 MD_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
 DASHBOARD_NAME = "Dashboard.md"
 MANUAL_NAME = "User Manual.md"
+KANBAN_NAME = "Kanban.md"
+GENERATED_TYPES = ("dashboard", "manual", "kanban")
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 MANUAL_TEMPLATE = PLUGIN_ROOT / "templates" / "project-manager-manual.md"
 
@@ -307,7 +324,9 @@ def scan(vault: Path) -> list[Project]:
             continue
         meta, _ = split_frontmatter(text)
         kind = str(meta.get("type", "")).lower()
-        if kind in ("dashboard", "manual"):     # generated; the manual has example tasks
+        # Generated: the manual has example tasks, a Kanban board (ours, or any
+        # board: the plugin may drop `type` when it saves a drag) has cards.
+        if kind in GENERATED_TYPES or "kanban-plugin" in meta:
             continue
         notes[rel] = text
         if kind not in ("project", "todo"):
@@ -359,6 +378,13 @@ def today() -> dt.date:
     return dt.date.today()
 
 
+def dated_items(p: Project) -> list[Item]:
+    """A project's dated items. The next action and project deadline usually
+    restate a dated task; don't list both."""
+    task_dues = {it.due for it in p.items if it.kind == "task"}
+    return [it for it in p.items if it.due and (it.kind == "task" or it.due not in task_dues)]
+
+
 def buckets(projects: list[Project], days: int):
     t = today()
     horizon = t + dt.timedelta(days=days)
@@ -366,12 +392,7 @@ def buckets(projects: list[Project], days: int):
     for p in projects:
         if p.status in ("done", "dropped"):
             continue
-        # The next action and project deadline usually restate a dated task;
-        # don't list both.
-        task_dues = {it.due for it in p.items if it.kind == "task"}
-        for it in p.items:
-            if not it.due or (it.kind != "task" and it.due in task_dues):
-                continue
+        for it in dated_items(p):
             d = dt.date.fromisoformat(it.due)
             if d < t:
                 overdue.append(it)
@@ -557,7 +578,7 @@ def dataview_blocks(folder: str, days: int, stale_days: int) -> list[str]:
     live_task = '!completed AND status != "-"'
     open_task = (f'{live_task} AND contains(text, "📅") AND '
                  '!contains(list("done", "dropped"), file.frontmatter.status) AND '
-                 '!contains(list("dashboard", "manual"), file.frontmatter.type)')
+                 '!contains(list("dashboard", "manual", "kanban"), file.frontmatter.type)')
     task_dates = 'filter(file.tasks, (t) => !t.completed AND t.status != "-" AND t.due).due'
     hub = f'FROM "{folder}"\nWHERE type = "project" AND !contains(list("done", "dropped"), status)'
     window = f"date(today) + dur({days} days)"
@@ -638,6 +659,9 @@ def render_dashboard(vault: Path, days: int, stale_days: int, waiting: list[dict
         "---", "type: dashboard", f"generated: {now}", "---",
         "# Projects Dashboard", "",
         f"📖 [[{folder}/{MANUAL_NAME[:-3]}|User manual · คู่มือการใช้งาน]]", "",
+        *([f"🗂️ [[{folder}/{kanban_path(vault).stem}|Kanban board · บอร์ดโครงการ]] — one card per project,"
+           " rebuilt with this dashboard (cards moved by hand go back on the next rebuild).", ""]
+          if kanban_enabled() else []),
         f"> [!info] Generated by `projects.py dashboard` at {now}. Edits here are overwritten —"
         " change the project notes instead. The Dataview views below are live: they update"
         " as soon as a project note changes, and ticking a task here ticks it in its note.", "",
@@ -679,6 +703,112 @@ def write_atomic(path: Path, text: str) -> None:
     except BaseException:
         Path(tmp).unlink(missing_ok=True)
         raise
+
+
+# ---------------------------------------------------------------- kanban
+
+# Lanes of the generated Kanban board (mgmeyers' obsidian-kanban format), in
+# order. A project goes in the first lane that fits; idea/on-hold projects go
+# in the last one, which is written only when there are any, collapsed.
+KANBAN_LANES = [("overdue", "🔴 Overdue"), ("week", "🟡 This week"),
+                ("waiting", "⏳ Waiting on others"), ("on_track", "🟢 On track"),
+                ("parked", "💤 Ideas and on hold")]
+KANBAN_WEEK = 7
+WIKI_LINK_RE = re.compile(r"\[\[([^\]|]*)(?:\|([^\]]*))?\]\]")
+
+
+def kanban_enabled() -> bool:
+    return os.environ.get("PM_KANBAN", "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def kanban_path(vault: Path) -> Path:
+    name = Path(os.environ.get("PM_KANBAN_NAME", "").strip() or KANBAN_NAME).name
+    return projects_dir(vault) / (name if name.endswith(".md") else name + ".md")
+
+
+def card_text(s: str, n: int = 70) -> str:
+    """One short line for a card: links reduced to their text, no line breaks."""
+    s = MD_LINK_RE.sub(r"\1", s)
+    s = WIKI_LINK_RE.sub(lambda m: m[2] or m[1].split("#")[0].split("/")[-1], s)
+    s = " ".join(s.split())
+    return s if len(s) <= n else s[:n - 1].rstrip() + "…"
+
+
+def ddmm(due: str) -> str:
+    return dt.date.fromisoformat(due).strftime("%d.%m")
+
+
+def kanban_lanes(vault: Path, projects: list[Project], week: int = KANBAN_WEEK) -> dict[str, list[str]]:
+    """Cards per lane, one per project (the to-do note and done/dropped
+    projects get none), each with the project's most urgent line:
+    overdue → the earliest late item; this week → the earliest item due within
+    `week` days; waiting → the longest-waited party; on track → the next dated
+    item, else the next action."""
+    t = today()
+    horizon = t + dt.timedelta(days=week)
+    waits: dict[str, dict] = {}
+    for r in waiting_rows(vault, projects):            # longest wait first
+        waits.setdefault(r["project"], r)
+    lanes: dict[str, list[tuple]] = {k: [] for k, _ in KANBAN_LANES}
+    for p in projects:
+        if p.kind != "project" or p.status in ("done", "dropped"):
+            continue
+        prio = PRIORITY_ORDER.get(p.priority, 1)
+        items = sorted(dated_items(p), key=lambda it: it.due)
+        late = [it for it in items if it.due < t.isoformat()]
+        soon = [it for it in items if t.isoformat() <= it.due <= horizon.isoformat()]
+        if p.status not in ("active", "waiting"):
+            lane, key = "parked", (STATUS_ORDER.index(p.status) if p.status in STATUS_ORDER else 99, prio)
+            text = f"{p.status} · {card_text(p.next_action)}" if p.next_action else p.status
+        elif late:
+            it = late[0]
+            lane, key = "overdue", (it.due, prio)
+            text = f"{card_text(it.text)} · {ddmm(it.due)} ({rel_days(it.due)})"
+            if len(late) > 1:
+                text += f" +{len(late) - 1} more late"
+        elif soon:
+            it = soon[0]
+            lane, key = "week", (it.due, prio)
+            text = f"{card_text(it.text)} · {ddmm(it.due)} ({rel_days(it.due)})"
+        elif (r := waits.get(p.name)):
+            lane, key = "waiting", (-(r["days"] if r["days"] is not None else -1), prio)
+            text = f"⏳ {card_text(r['label'])}" + ("" if r["days"] is None else f" · {r['days']} working days")
+        else:
+            lane = "on_track"
+            if items:
+                key, text = (items[0].due, prio), f"{card_text(items[0].text)} · {ddmm(items[0].due)}"
+            else:
+                key, text = ("9999", prio), card_text(p.next_action)
+        card = f"[[{p.file[:-3]}|{p.name}]]" + (f" — {text}" if text else "")
+        lanes[lane].append((key, p.name, card))
+    return {k: [c for *_, c in sorted(v)] for k, v in lanes.items()}
+
+
+def render_kanban(vault: Path, projects: list[Project]) -> str:
+    now = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+    lanes = kanban_lanes(vault, projects)
+    shown = [(k, title) for k, title in KANBAN_LANES if k != "parked" or lanes[k]]
+    out = ["---", "kanban-plugin: board", "type: kanban", f"generated: {now}",
+           "note: " + json.dumps("Generated by projects.py from the project notes and rebuilt with the dashboard."
+                                 " Cards moved by hand go back to their column on the next rebuild;"
+                                 " change the project notes instead."),
+           "---", ""]
+    for k, title in shown:
+        out += [f"## {title}", ""] + [f"- [ ] {c}" for c in lanes[k]] + ["", ""]
+    settings = {"kanban-plugin": "board", "show-checkboxes": False,
+                "list-collapse": [k == "parked" for k, _ in shown]}
+    out += ["%% kanban:settings", "```", json.dumps(settings), "```", "%%", ""]
+    return "\n".join(out)
+
+
+def write_kanban(vault: Path, projects: list[Project]) -> str:
+    """Write the board; return a one-line summary for the command output."""
+    path = kanban_path(vault)
+    write_atomic(path, render_kanban(vault, projects))
+    lanes = kanban_lanes(vault, projects)
+    counts = ", ".join(f"{len(lanes[k])} {title.split(' ', 1)[1].lower()}" for k, title in KANBAN_LANES
+                       if k != "parked" or lanes[k])
+    return f"{path.relative_to(vault).as_posix()}: {counts}"
 
 
 # ---------------------------------------------------------------- digest
@@ -1261,6 +1391,7 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("list"); s.add_argument("--json", action="store_true")
     sub.add_parser("dashboard")
+    sub.add_parser("kanban", help="write the Kanban board note alone (also written by dashboard when PM_KANBAN=1)")
     s = sub.add_parser("manual", help="write the user manual note into the vault")
     s.add_argument("--quiet", action="store_true", help="for the SessionStart hook")
     s.add_argument("--force", action="store_true", help="rewrite even when current")
@@ -1326,6 +1457,12 @@ def main() -> None:
         o, s_ = buckets(projects, days)
         print(f"{path.relative_to(vault).as_posix()}: {sum(p.kind == 'project' for p in projects)} projects, "
               f"{len(o)} overdue, {len(s_)} due in {days}d")
+        if kanban_enabled():
+            print(write_kanban(vault, projects))
+    elif a.cmd == "kanban":
+        print(write_kanban(vault, projects))
+        if not kanban_enabled():
+            print("PM_KANBAN is off, so `dashboard` won't keep this board current; set PM_KANBAN=1 to rebuild it there.")
     elif a.cmd == "scan-inbox":
         cmd_scan_inbox(vault, projects, a.dry_run)
     elif a.cmd == "digest":

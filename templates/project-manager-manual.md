@@ -38,6 +38,12 @@ The views are **live**. They update as soon as any note changes, and ticking a t
 2. **Browse**, search for **Dataview**, then **Install** and **Enable**.
 3. Recommended: in **Settings → Dataview**, turn on **Automatic task completion tracking** and **Use emoji shorthand for completion**. A task you tick on the dashboard then gets its completion date (`✅ 2026-10-01`).
 
+### Kanban board (optional)
+
+If you like a board view, ask Claude to "turn on the Kanban board". The board, **Kanban** in `{{FOLDER}}/`, shows one card per project in four columns: 🔴 **Overdue** (something is late), 🟡 **This week** (something is due within 7 days), ⏳ **Waiting on others**, and 🟢 **On track**. Ideas and on-hold projects sit in a folded last column. Each card shows the project's most urgent item and its date (DD.MM), or whom you are waiting for.
+
+The board is **rebuilt from the project notes** each time the dashboard is, so a card you drag by hand goes back to its column on the next rebuild. To move a project, change its note (tick or re-date the task, clear `waiting_on`). It needs the free **Kanban** community plugin (Settings → Community plugins → Browse → *Kanban* → Install, Enable); without it the board opens as a plain checklist. The cards are `- [ ]` lines, so a vault-wide Tasks query (such as `not done`) also lists them; add `path does not include {{FOLDER}}/Kanban` to that query to hide them.
+
 ### A hub note
 
 The fields at the top of the note (the frontmatter):
@@ -123,6 +129,8 @@ These go in `~/.config/nk-work-kit/.env`:
 | `PM_SCAN_DAYS` | `14` | Inbox scan: how far ahead to read the calendar |
 | `PM_WAITING_DAYS` | `2` | Working days of waiting before someone appears in the digest |
 | `PM_HOLIDAYS_FILE` | — | A file of holidays (one `YYYY-MM-DD` per line) that replaces the built-in Thai government holidays for 2026–2027 |
+| `PM_KANBAN` | off | `1` writes the Kanban board with every dashboard rebuild |
+| `PM_KANBAN_NAME` | `Kanban` | Name of the board note in `{{FOLDER}}/` |
 
 After changing `PM_FOLDER`, `PM_NOTIFY_DAYS` or `PM_STALE_DAYS`, ask Claude to "update the dashboard".
 
@@ -158,6 +166,12 @@ After changing `PM_FOLDER`, `PM_NOTIFY_DAYS` or `PM_STALE_DAYS`, ask Claude to "
 1. ไปที่ **Settings → Community plugins** หากมีข้อความถาม ให้กด **Turn on community plugins**
 2. กด **Browse** ค้นหา **Dataview** แล้วกด **Install** และ **Enable**
 3. แนะนำให้เปิด **Automatic task completion tracking** และ **Use emoji shorthand for completion** ใน **Settings → Dataview** ด้วย เมื่อติ๊กงานบนแดชบอร์ด จะมีวันที่เสร็จ (`✅ 2026-10-01`) บันทึกไว้ให้
+
+### บอร์ด Kanban (ไม่บังคับ)
+
+หากต้องการดูโครงการเป็นบอร์ด ให้บอก Claude ว่า "เปิดบอร์ด Kanban" บอร์ดชื่อ **Kanban** ในโฟลเดอร์ `{{FOLDER}}/` มีการ์ดหนึ่งใบต่อหนึ่งโครงการ แบ่งเป็นสี่คอลัมน์ ได้แก่ 🔴 **Overdue** (มีงานเลยกำหนด) 🟡 **This week** (มีงานครบกำหนดภายใน 7 วัน) ⏳ **Waiting on others** (รอผู้อื่น) และ 🟢 **On track** (ตามแผน) โครงการสถานะ idea และ on-hold อยู่ในคอลัมน์สุดท้ายที่พับไว้ การ์ดแต่ละใบแสดงงานที่เร่งด่วนที่สุดของโครงการพร้อมวันที่ (วัน.เดือน) หรือผู้ที่กำลังรอ
+
+บอร์ด **สร้างใหม่จากโน้ตหลักของโครงการ** ทุกครั้งที่สร้างแดชบอร์ด การ์ดที่ลากย้ายเองจะกลับไปคอลัมน์เดิมในรอบถัดไป หากต้องการย้ายโครงการ ให้แก้ที่โน้ตหลัก (ติ๊กงาน เปลี่ยนวันที่ หรือลบ `waiting_on`) บอร์ดต้องใช้ปลั๊กอิน **Kanban** (Settings → Community plugins → Browse → *Kanban* → Install, Enable) หากไม่มีปลั๊กอินจะเห็นเป็นรายการ checkbox ธรรมดา การ์ดเป็นบรรทัด `- [ ]` จึงขึ้นในคำค้น Tasks ที่ค้นทั้ง vault (เช่น `not done`) ด้วย หากไม่ต้องการ ให้เพิ่ม `path does not include {{FOLDER}}/Kanban` ในคำค้นนั้น
 
 ### โน้ตหลักของโครงการ
 
@@ -244,6 +258,8 @@ Claude จะใส่วันที่ใน `📅` หรือช่อง `
 | `PM_SCAN_DAYS` | `14` | สแกนอีเมล: อ่านปฏิทินล่วงหน้ากี่วัน |
 | `PM_WAITING_DAYS` | `2` | จำนวนวันทำการที่รอ ก่อนขึ้นในอีเมลสรุป |
 | `PM_HOLIDAYS_FILE` | — | ไฟล์วันหยุด (หนึ่งวันที่ `YYYY-MM-DD` ต่อบรรทัด) ใช้แทนวันหยุดราชการไทยปี 2026–2027 ที่มีอยู่ในสคริปต์ |
+| `PM_KANBAN` | ปิด | `1` = สร้างบอร์ด Kanban ทุกครั้งที่สร้างแดชบอร์ด |
+| `PM_KANBAN_NAME` | `Kanban` | ชื่อโน้ตบอร์ดในโฟลเดอร์ `{{FOLDER}}/` |
 
 หลังแก้ `PM_FOLDER`, `PM_NOTIFY_DAYS` หรือ `PM_STALE_DAYS` ให้บอก Claude ว่า "อัปเดตแดชบอร์ด"
 

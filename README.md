@@ -349,6 +349,12 @@ the moment a note changes, and ticking a task in the dashboard ticks it in its
 note. The views need the Dataview plugin, and the dashboard explains how to
 install it.
 
+Optional: with `PM_KANBAN=1`, each dashboard rebuild also writes
+`Projects/Kanban.md`, a board for the Obsidian Kanban plugin with one card per
+project in 🔴 Overdue, 🟡 This week, ⏳ Waiting on others and 🟢 On track
+(idea/on-hold in a folded last column). It is regenerated from the hub notes,
+so cards dragged by hand go back on the next rebuild.
+
 The dashboard links to a bilingual (English/Thai) **user manual**,
 `Projects/User Manual.md`. A `SessionStart` hook writes it in the first Claude
 Code session after the plugin is installed or updated. The hook does nothing
@@ -371,11 +377,13 @@ Direct use:
 ```bash
 uv run scripts/projects.py list [--json]
 uv run scripts/projects.py dashboard
+uv run scripts/projects.py kanban                # Kanban board alone (PM_KANBAN=1 adds it to dashboard)
 uv run scripts/projects.py manual [--force]      # bilingual user manual note
 uv run scripts/projects.py digest --days 14
 uv run scripts/projects.py new "Project name" --area X --due 2026-12-15
 uv run scripts/projects.py notify --dry-run
 uv run scripts/projects.py scan-inbox --dry-run  # needs auth-gmail --scan
+uv run scripts/projects_test.py                  # offline tests: Kanban board
 ```
 
 **Inbox scan (optional).** `scan-inbox` reads new Gmail (not Promotions, Social or Updates) and
