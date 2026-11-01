@@ -1,7 +1,7 @@
 ---
 name: personal-finance
 description: BUU Personnel Finance — personal money tracking and retirement planning for Burapha University staff, kept in the user's own private Google Sheet with an optional Obsidian/HTML dashboard. Use this skill whenever the user wants to track income and spending, import bank or credit-card statements (Krung Thai รายการเดินบัญชี, UOB e-statement), check their budget, net worth, credit-card due date or mortgage, follow up money the university owes them (เงินทดรองจ่าย, เบิกคืน, ค่าเล่าเรียนบุตร), look at income tax and deductions (ภ.ง.ด.90/91, RMF, ThaiESG, ประกันบำนาญ), or plan for retirement (เกษียณ, บำนาญ, กบข., กองทุนสำรองเลี้ยงชีพ). Triggers include "การเงินส่วนตัว", "รายรับรายจ่าย", "นำเข้าสเตทเมนต์", "บัตรเครดิตครบกำหนด", "เงินทดรองจ่ายค้าง", "วางแผนเกษียณ", "ภาษีปีนี้", "personal finance", "import my statement", "update the finance dashboard", "how much did I spend", "am I on track for retirement", "set up finance tracking", even when the user only drops a bank statement PDF into the chat.
-version: 1.0.0
+version: 1.0.1
 ---
 
 # BUU Personnel Finance
