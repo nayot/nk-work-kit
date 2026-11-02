@@ -1,7 +1,7 @@
 ---
 name: thai-memo
-description: Activate this skill when the user asks to write, draft, or create a Thai official document — บันทึกข้อความ, บันทึกข้อความภายใน, หนังสือภายนอก, หนังสือราชการ, Thai government memo, Thai official letter, or any Thai administrative document. Also activate when the user says "ร่างบันทึกข้อความ", "เขียนหนังสือ", "ขอแก้ไขเกรด" (grade correction memo), or similar Thai bureaucratic writing tasks. Also covers sending a finished PDF to BUU e-Signature (e-sign.buu.ac.th) for signing.
-version: 1.4.0
+description: Activate this skill when the user asks to write, draft, or create a Thai official document — บันทึกข้อความ, บันทึกข้อความภายใน, หนังสือภายนอก, หนังสือราชการ, Thai government memo, Thai official letter, or any Thai administrative document, including the memos for an overseas trip (ขออนุมัติเดินทางไปต่างประเทศ, รายงานตัวกลับจากต่างประเทศ). Also activate when the user says "ร่างบันทึกข้อความ", "เขียนหนังสือ", "ขอแก้ไขเกรด" (grade correction memo), or similar Thai bureaucratic writing tasks. Also covers sending a finished PDF to BUU e-Signature (e-sign.buu.ac.th) for signing.
+version: 1.5.0
 ---
 
 # Thai Official Document Skill
@@ -82,9 +82,10 @@ Use Arabic digits (Thai digits only for สำนักพระราชวั�
 Do not re-implement these by hand or post-process the ODT — `build_memo.py` emits them, matching the signed หนังสือภายนอก precedent:
 
 - **`doc_number` renders inline** on the ที่ line: `ที่ อว 8116 / XXXX`, with the tab jumping to the sender block on the right. Pass only the part after `อว` — the script writes the `ที่ อว` prefix itself.
-- **คำลงท้าย** (`ขอแสดงความนับถือ`) is emitted automatically for `nok`, indented by tabs. Do **not** put it in `body[]` — it would appear twice. Pass `"closing": ""` to suppress it, or a different string to replace it.
-- **Contact box** (`contact_box`, list of lines — ส่วนราชการเจ้าของเรื่อง, โทร, ไปรษณีย์อิเล็กทรอนิกส์, email) is always emitted for `nok` as a borderless page-anchored text box at the bottom left of page 1. Always collect it; without it the box shows `from_org` only and the script warns.
+- **คำลงท้าย** (`ขอแสดงความนับถือ`) is emitted automatically for `nok`, centred on the `ลงชื่อ` tab stop after one blank line, with two blank lines before the signer's name, as in the faculty's แบบหนังสือภายนอก.dotx. Do **not** put it in `body[]` — it would appear twice. Pass `"closing": ""` to suppress it, or a different string to replace it.
+- **Contact box** (`contact_box`, list of lines — ส่วนราชการเจ้าของเรื่อง, โทร, ไปรษณีย์อิเล็กทรอนิกส์, email) is always emitted for `nok` as a borderless text box at the left margin **right after the signature block** (one line + 8pt below the signer's last line, as in the template), its lines in the template's `หน่วยงานเจ้าของเรื่อง` style. When the page is full, the last body paragraph (จึงเรียนมาเพื่อ…), the closing, the signature and the box move to the next page together (Nayot's rule, 02.11.2026). Check the page count and tell the user when a letter runs to two pages. Always collect it; without it the box shows `from_org` only and the script warns.
 - **Signature and role lines** get a leading tab so they land on the centre tab stop of the `ลงชื่อ` style.
+- **Both types follow the faculty's .dotx templates** (แบบหนังสือภายนอก.dotx, แบบหนังสือภายใน-TH Sarabun.dotx): a long เรื่อง wraps under the subject, double spaces in the JSON are kept, and on a full page the last body paragraph (จึงเรียนมาเพื่อ…) moves to the next page with the signature block, never the signature alone. Check the page count in the rendered PDF.
 - **`content.xml` is written with `pretty_print` off.** lxml's indentation between sibling spans is rendered by ODF as a visible space — that is what once produced `( ผู้ช่วยศาสตราจารย์ ... )` instead of `(ผู้ช่วยศาสตราจารย์ ...)`. Keep it off.
 
 ## Signer's name in brackets
@@ -94,8 +95,10 @@ The name sits tight inside the brackets — `(ผู้ช่วยศาสต�
 ## Tips
 
 - For grade correction memos, `type = nai`, `to = หัวหน้าภาควิชา...`, body explains the error and includes a comparison table.
-- For formal external letters, `type = nok`; include `from_org`, `from_address`, and optionally `enclosures`.
+- For formal external letters, `type = nok`; include `from_org`, `from_address`, and optionally `references` (อ้างถึง) and `enclosures`. Several items print the label once, then a numbered list (1., 2., …), so don't number them yourself.
 - Tables are optional; include only when the user provides structured data to compare.
+- **Overseas trips** (ขออนุมัติเดินทางไปปฏิบัติงาน ณ ต่างประเทศ, รายงานตัวกลับ, the trip report): read `overseas-travel.md` in this skill's folder first. It records the Faculty of Engineering guide (fields, the required urgent-measures paragraph, attachments, two signature blocks); `examples/overseas_travel_nai.json` is a worked request memo.
+- `endorsers` adds signature blocks below the signer (e.g. ผู้บังคับบัญชาขั้นต้น / หัวหน้าภาควิชา) on a `nai` memo.
 - `attachments` become a numbered list (1. 2. 3.; ๑. ๒. ๓. with `"numerals": "thai"`) at the end of the body, before คำลงท้าย.
 
 ---

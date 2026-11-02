@@ -45,6 +45,7 @@ Ask the user for missing fields. Use the language they're writing in (Thai/Engli
 | `table` | ตาราง | No (headers + rows) |
 | `signer_name` | ชื่อผู้ลงนาม | Yes |
 | `signer_roles` | ตำแหน่ง | Yes (list, one per line) |
+| `endorsers` | ผู้บังคับบัญชาขั้นต้น etc., signing below the signer | No (list of `{name, roles}`; empty name = dotted line) |
 
 ### For `nok` — หนังสือภายนอก
 
@@ -56,6 +57,7 @@ Ask the user for missing fields. Use the language they're writing in (Thai/Engli
 | `date` | วันที่ | Yes |
 | `subject` | เรื่อง | Yes |
 | `to` | เรียน | Yes |
+| `references` | อ้างถึง | No (list) |
 | `enclosures` | สิ่งที่ส่งมาด้วย | No (list) |
 | `body` | เนื้อความ | Yes (list of paragraphs) |
 | `attachments` | สิ่งที่แนบ | No |
@@ -65,8 +67,8 @@ Ask the user for missing fields. Use the language they're writing in (Thai/Engli
 | `signer_roles` | ตำแหน่ง | Yes |
 | `contact_box` | ส่วนราชการเจ้าของเรื่อง / โทร / อีเมล | Yes — list of lines, e.g. `["ภาควิชาวิศวกรรมไฟฟ้า", "โทร 081-xxx-xxxx", "ไปรษณีย์อิเล็กทรอนิกส์", "name@eng.buu.ac.th"]` |
 
-The script always prints `contact_box` as a borderless text box at the bottom
-left of page 1 (without it, the box shows `from_org` only and warns), so do not
+The script always prints `contact_box` as a borderless text box right after
+the signature block, in the template's `หน่วยงานเจ้าของเรื่อง` style (without it, the box shows `from_org` only and warns), so do not
 add the contact lines to `body[]` or post-process the ODT to add one.
 
 The script writes the `ที่ อว` prefix and puts `doc_number` on the same line as

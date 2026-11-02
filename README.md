@@ -201,13 +201,15 @@ See [`examples/grade_correction_nai.json`](examples/grade_correction_nai.json) f
 | `date` | string | ✓ | ✓ | วันที่ (Thai Buddhist Era string) |
 | `subject` | string | ✓ | ✓ | เรื่อง |
 | `to` | string | ✓ | ✓ | เรียน |
+| `references` | string[] | — | optional | อ้างถึง (one line each, before สิ่งที่ส่งมาด้วย) |
 | `enclosures` | string[] | — | optional | สิ่งที่ส่งมาด้วย |
 | `body` | string[] | ✓ | ✓ | เนื้อความ (one string per paragraph) |
 | `table` | object | optional | optional | `{ headers, rows }` |
 | `attachments` | string[] | optional | optional | สิ่งที่แนบ (numbered list) |
 | `signer_name` | string | ✓ | ✓ | ชื่อผู้ลงนาม |
 | `signer_roles` | string[] | ✓ | ✓ | ตำแหน่ง (one string per line) |
-| `contact_box` | string[] | — | ✓ | ส่วนราชการเจ้าของเรื่อง / โทร / อีเมล — one string per line, printed in a borderless text box at the bottom left of page 1. Always emitted; without it the box shows `from_org` only, with a warning |
+| `endorsers` | object[] | optional | — | `{ name, roles }` each, signing below the signer (e.g. ผู้บังคับบัญชาขั้นต้น); empty `name` leaves a dotted line |
+| `contact_box` | string[] | — | ✓ | ส่วนราชการเจ้าของเรื่อง / โทร / อีเมล — one string per line, printed in a borderless text box right after the signature block. Always emitted; without it the box shows `from_org` only, with a warning |
 | `numerals` | string | optional | optional | `"arabic"` (default) or `"thai"` — see below |
 | `output` | string | optional | optional | Output `.odt` path |
 
