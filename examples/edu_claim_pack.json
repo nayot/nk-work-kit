@@ -1,0 +1,32 @@
+{
+ "output": "/tmp/edu_claim_pack_welfare.pdf",
+ "form": "/tmp/edu_claim_welfare.pdf",
+ "certifier": {
+  "name": "ผู้ช่วยศาสตราจารย์ ดร.สมชาย ใจดี",
+  "role": "ผู้ช่วยศาสตราจารย์"
+ },
+ "only_for": "ใช้เพื่อแนบเบิกสวัสดิการเกี่ยวกับการศึกษาบุตร ด.ญ.ตัวอย่าง ใจดี เท่านั้น",
+ "pages": [
+  {
+   "src": "/tmp/edu_claim_gov.pdf",
+   "pages": [
+    1
+   ],
+   "layout": "full",
+   "diagonal": true,
+   "angle": 30,
+   "name": "นายสมชาย ใจดี",
+   "role": "",
+   "_comment": "stands in for the ID-card scan"
+  },
+  {
+   "src": "/tmp/edu_claim_gov.pdf",
+   "pages": [
+    2
+   ],
+   "certify": "รับรองสำเนาถูกต้อง",
+   "diagonal": true,
+   "_comment": "stands in for a certificate"
+  }
+ ]
+}

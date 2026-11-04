@@ -1,0 +1,40 @@
+{
+ "form": "welfare",
+ "fields": {
+  "claimant_name": "ผศ.ดร.สมชาย ใจดี",
+  "claimant_position": "ผู้ช่วยศาสตราจารย์",
+  "claimant_unit": "คณะวิศวกรรมศาสตร์",
+  "spouse_name": "นางสมหญิง ใจดี",
+  "spouse_other_position": "อาจารย์",
+  "spouse_other_unit": "คณะวิทยาศาสตร์",
+  "child1_name": "ด.ญ.ตัวอย่าง ใจดี",
+  "child1_born": "1 ม.ค. 2559",
+  "child1_order_father": "1",
+  "child1_order_mother": "-",
+  "child1_school": "โรงเรียนสาธิต “พิบูลบำเพ็ญ”",
+  "child1_amphoe": "เมืองชลบุรี",
+  "child1_province": "ชลบุรี",
+  "child1_grade": "ประถมศึกษาปีที่ 5",
+  "propose_to": "คณบดีคณะวิศวกรรมศาสตร์",
+  "claimant_sign_name": "ผศ.ดร.สมชาย ใจดี",
+  "receiver_name": "ผศ.ดร.สมชาย ใจดี",
+  "claimant_start_date": "1 มิ.ย. 2550",
+  "child1_paid": "80,650",
+  "child1_other_source": "2,000",
+  "child1_claim_5_8": "1,850",
+  "child1_claim_5_9_10": "18,650",
+  "child1_total": "20,500",
+  "receive_amount": "20,500",
+  "received_amount": "20,500"
+ },
+ "ticks": [
+  "status_staff_pension",
+  "spouse_other",
+  "right_a",
+  "right_c",
+  "is_father",
+  "father_married",
+  "receive_full",
+  "sole_claimant"
+ ]
+}

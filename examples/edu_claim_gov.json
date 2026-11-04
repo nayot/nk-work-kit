@@ -1,0 +1,34 @@
+{
+ "form": "gov",
+ "fields": {
+  "claimant_name": "ผศ.ดร.สมชาย ใจดี",
+  "claimant_position": "ผู้ช่วยศาสตราจารย์",
+  "claimant_unit": "คณะวิศวกรรมศาสตร์",
+  "spouse_name": "นางสมหญิง ใจดี",
+  "spouse_other_position": "อาจารย์",
+  "spouse_other_unit": "คณะวิทยาศาสตร์",
+  "child1_name": "ด.ญ.ตัวอย่าง ใจดี",
+  "child1_born": "1 ม.ค. 2559",
+  "child1_order_father": "1",
+  "child1_order_mother": "-",
+  "child1_school": "โรงเรียนสาธิต “พิบูลบำเพ็ญ”",
+  "child1_amphoe": "เมืองชลบุรี",
+  "child1_province": "ชลบุรี",
+  "child1_grade": "ประถมศึกษาปีที่ 5",
+  "propose_to": "คณบดีคณะวิศวกรรมศาสตร์",
+  "claimant_sign_name": "ผศ.ดร.สมชาย ใจดี",
+  "receiver_name": "ผศ.ดร.สมชาย ใจดี",
+  "child1_amount": "80,650",
+  "receive_amount": "2,000",
+  "received_amount": "2,000"
+ },
+ "ticks": [
+  "spouse_other",
+  "is_father",
+  "child1_type2_tuition",
+  "receive_full",
+  "true_statement",
+  "child_eligible",
+  "sole_claimant"
+ ]
+}

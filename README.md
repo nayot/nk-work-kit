@@ -20,6 +20,7 @@ Engineering, Burapha University.
 | `pay-sheet` | A payment request (ค่าตอบแทนกรรมการ, วิทยากร …) into a one-page sheet with a **PromptPay QR per payee**, amount pre-filled, that becomes the **payment record**: each transfer slip read, filed and ticked with the bank's reference number, the slip images appended, and the reply to the requester drafted |
 | `personal-finance` | **BUU Personnel Finance**: keep income, spending, advances, budget, mortgage, tax and a retirement projection in your own private **Google Sheet**, imported from Krung Thai and UOB statements, with an Obsidian or HTML dashboard |
 | `tqf3` | Fill in a **มคอ.3** (TQF 3 course specification) in tqf.buu.ac.th from a spec JSON — objectives, CLOs per TQF domain, the week table, measurement per CLO, grade scale, resources, review — in your own browser, with the rendered result checked; you press ส่ง มคอ.3 yourself |
+| `edu-claim` | Child-education claims (**ค่าเล่าเรียนบุตร**): from a school receipt, how much each channel pays, the government form **แบบ 7223** and the **BUU welfare-fund** form filled in, and each submission pack assembled in finance's order with every copy marked สำเนาถูกต้อง — plus the notes to write on the receipt by hand |
 | `reg-grades` | Set up score items and enter marks for every section in **reg.buu.ac.th** (บันทึกคะแนน), matched to student IDs in your own browser — checked before each save and read back after; new items stay hidden from students until you switch them on |
 
 Ask Claude in your own words, or use the slash commands below.
@@ -56,6 +57,8 @@ Ask Claude in your own words, or use the slash commands below.
   see [Exam paper](#exam-paper).
 - For the `pay-sheet` skill only: XeLaTeX (TeX Live) with the **Sarabun** font and
   `qrencode` — see [Payment sheet](#payment-sheet).
+- For the `edu-claim` skill only: XeLaTeX with the **TH SarabunPSK** font, `qpdf` and
+  `pdfinfo` (poppler); `EDU_CLAIM_DIR` set to a private folder — see [Child-education claims](#child-education-claims).
 - For the `tqf3` skill only: Claude in Chrome, signed in to tqf.buu.ac.th by you.
 - For the `reg-grades` skill only: Claude in Chrome, signed in to reg.buu.ac.th by you;
   `python3` for the helper.
@@ -139,6 +142,7 @@ profile at `~/.local/share/buu-docnum/profile`, already outside the plugin.
 | `personal-finance` | tested (Google sign-in step not yet) | should work | should work (`aisync` needs bash) |
 | `exam-paper` | tested on synthetic scans (real scans not yet) | should work | should work |
 | `pay-sheet` | should work | tested (macOS) | should work |
+| `edu-claim` | tested (one claim, Nov 2026) | should work | should work |
 | `doc-number` | tested | should work | needs a graphical session |
 | `draft-memo` / `thai-memo` | tested | check the LibreOffice path | check the LibreOffice path |
 
@@ -684,6 +688,28 @@ curriculum PLOs (the skill shows you the system's list before adding CLOs);
 CLOs can't be edited, only deleted; the database stores Greek letters and math
 symbols as "?" (write them as words). The skill saves section by section and
 reads the rendered มคอ.3 back; it never presses ส่ง มคอ.3.
+
+## Child-education claims
+
+The `edu-claim` skill turns a school receipt into the claim packs for both channels a BUU staff member may have:
+the government form **แบบ 7223** (ข้าราชการ, or staff who keep ข้าราชการบำนาญ rights) and the **BUU welfare-fund**
+form (กองทุนสวัสดิการมหาวิทยาลัยบูรพา). Both forms are rebuilt from scans of the printed originals and match them
+line for line. The packs follow the order finance has approved before, with the สำเนาถูกต้อง blocks and the
+"for this claim only" line on certificates; you sign the printout.
+
+```bash
+python3 scripts/edu_claim.py check examples/edu_claim_welfare.json                  # amounts add up, words match
+python3 scripts/edu_claim.py fill  examples/edu_claim_welfare.json /tmp/edu_claim_welfare.pdf
+python3 scripts/edu_claim.py fill  examples/edu_claim_gov.json /tmp/edu_claim_gov.pdf
+python3 scripts/edu_claim.py pack  examples/edu_claim_pack.json                      # form + certified copies
+python3 scripts/edu_claim.py blank /tmp/form_7223.pdf --form gov                     # empty form
+python3 scripts/edu_claim.py words 20500                                             # สองหมื่นห้าร้อยบาทถ้วน
+```
+
+Your details (names, titles, children, document paths and the amounts approved before) live in
+`$EDU_CLAIM_DIR/profile.json`, with one folder per claim; keep that folder private. The skill never invents a
+claim rate: it uses your approved precedents, and asks when a receipt is new. The receipt itself is not
+printed into the pack — the skill gives you the notes to write on it by hand.
 
 ## License
 
