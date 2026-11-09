@@ -21,6 +21,7 @@ Engineering, Burapha University.
 | `personal-finance` | **BUU Personnel Finance**: keep income, spending, advances, budget, mortgage, tax and a retirement projection in your own private **Google Sheet**, imported from Krung Thai and UOB statements, with an Obsidian or HTML dashboard |
 | `tqf3` | Fill in a **มคอ.3** (TQF 3 course specification) in tqf.buu.ac.th from a spec JSON — objectives, CLOs per TQF domain, the week table, measurement per CLO, grade scale, resources, review — in your own browser, with the rendered result checked; you press ส่ง มคอ.3 yourself |
 | `edu-claim` | Child-education claims (**ค่าเล่าเรียนบุตร**): from a school receipt, how much each channel pays, the government form **แบบ 7223** and the **BUU welfare-fund** form filled in, and each submission pack assembled in finance's order with every copy marked สำเนาถูกต้อง — plus the notes to write on the receipt by hand |
+| `uniserv-project` | Budget of an **academic-service project** (โครงการบริการวิชาการ): the **ค่าธรรมเนียมบริการวิชาการ** (university 7% + faculty share of the *expenditure*, each part rounded up to the ten), fixed revenue split into expenditure + fee, the ข้อ 19 cap on committee pay, Thai baht words, and the proposal's structure and approval route — from ระเบียบ ม.บูรพา พ.ศ. 2565, text included |
 | `reg-grades` | Set up score items and enter marks for every section in **reg.buu.ac.th** (บันทึกคะแนน), matched to student IDs in your own browser — checked before each save and read back after; new items stay hidden from students until you switch them on |
 
 Ask Claude in your own words, or use the slash commands below.
@@ -143,6 +144,7 @@ profile at `~/.local/share/buu-docnum/profile`, already outside the plugin.
 | `exam-paper` | tested on synthetic scans (real scans not yet) | should work | should work |
 | `pay-sheet` | should work | tested (macOS) | should work |
 | `edu-claim` | tested (one claim, Nov 2026) | should work | should work |
+| `uniserv-project` | should work | tested (macOS, Nov 2026) | should work |
 | `doc-number` | tested | should work | needs a graphical session |
 | `draft-memo` / `thai-memo` | tested | check the LibreOffice path | check the LibreOffice path |
 
@@ -710,6 +712,20 @@ Your details (names, titles, children, document paths and the amounts approved b
 `$EDU_CLAIM_DIR/profile.json`, with one folder per claim; keep that folder private. The skill never invents a
 claim rate: it uses your approved precedents, and asks when a receipt is new. The receipt itself is not
 printed into the pack — the skill gives you the notes to write on it by hand.
+
+## Academic-service project budgets
+
+The `uniserv-project` skill does the arithmetic of a โครงการบริการวิชาการ under ระเบียบมหาวิทยาลัยบูรพา ว่าด้วยการบริหาร
+โครงการบริการวิชาการ พ.ศ. 2565 (full text in `skills/uniserv-project/regulation-2565.md`):
+
+```bash
+python3 scripts/uniserv_budget.py solve 195600              # → expenditure 170,080 + fee 25,520 (11,910 + 13,610)
+python3 scripts/uniserv_budget.py check examples/uniserv_budget.json
+```
+
+The fee is reckoned on the project's **expenditure** (ข้อ 16–17: university ≥ 7%, faculty ≥ 5%, each part rounded up
+to the ten; the Faculty of Engineering uses 7% + 8% = 15%), so with fixed revenue it is not 15% of the revenue.
+`check` also tests every qty × unit product, the revenue/expenditure balance and the ข้อ 19 cap on committee pay.
 
 ## License
 
